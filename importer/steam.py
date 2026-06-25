@@ -19,6 +19,7 @@ from data.game import Game, Platform
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _steam_root() -> Optional[Path]:
     candidates = [
         config.STEAM_ROOT,
@@ -83,14 +84,16 @@ def _load_playtimes(steam_root: Path) -> dict[str, int]:
         if not lc.exists():
             continue
         try:
-            data = vdf.load(open(lc, encoding="utf-8", errors="replace"),
-                            mapper=vdf.VDFDict)
-            apps = (data
-                    .get("UserLocalConfigStore", {})
-                    .get("Software", {})
-                    .get("Valve", {})
-                    .get("Steam", {})
-                    .get("apps", {}))
+            data = vdf.load(
+                open(lc, encoding="utf-8", errors="replace"), mapper=vdf.VDFDict
+            )
+            apps = (
+                data.get("UserLocalConfigStore", {})
+                .get("Software", {})
+                .get("Valve", {})
+                .get("Steam", {})
+                .get("apps", {})
+            )
             for appid, info in apps.items():
                 if isinstance(info, dict):
                     pt = int(info.get("Playtime", 0) or 0)
@@ -139,6 +142,7 @@ def _make_slug(name: str, appid: str) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def import_games() -> list[Game]:
     """
     Return a list of Game objects for every installed Steam game.
@@ -148,8 +152,8 @@ def import_games() -> list[Game]:
         print("[steam] Steam installation not found.")
         return []
 
-    libraries   = _load_library_folders(steam_root)
-    playtimes   = _load_playtimes(steam_root)
+    libraries = _load_library_folders(steam_root)
+    playtimes = _load_playtimes(steam_root)
     games: list[Game] = []
 
     for steamapps in libraries:
@@ -158,40 +162,46 @@ def import_games() -> list[Game]:
             if data is None:
                 continue
 
-            appid   = str(data.get("appid", ""))
-            name    = str(data.get("name", "")).strip()
-            state   = int(data.get("StateFlags", 0) or 0)
+            appid = str(data.get("appid", ""))
+            name = str(data.get("name", "")).strip()
+            state = int(data.get("StateFlags", 0) or 0)
 
             # Skip non-installed, tools, soundtracks, etc.
-            if not name or appid in ("228980", "1070560"):   # Steamworks common
+            if not name or appid in ("228980", "1070560"):  # Steamworks common
                 continue
             # StateFlags: 4 = fully installed
             if state not in (4, 6, 1030):
                 continue
             # Skip Proton, Steam Runtime, and other tools
-            _SKIP_PREFIXES = ("Proton", "Steam Linux Runtime", "Steamworks",
-                              "Steam VR", "SteamVR")
+            _SKIP_PREFIXES = (
+                "Proton",
+                "Steam Linux Runtime",
+                "Steamworks",
+                "Steam VR",
+                "SteamVR",
+            )
             if any(name.startswith(p) for p in _SKIP_PREFIXES):
                 continue
 
-
             install_dir_str = data.get("installdir", "")
-            install_dir = steamapps / "common" / install_dir_str if install_dir_str else None
+            install_dir = (
+                steamapps / "common" / install_dir_str if install_dir_str else None
+            )
 
             slug = _make_slug(name, appid)
-            art  = _find_steam_art(appid)
+            art = _find_steam_art(appid)
 
             game = Game(
-                slug             = slug,
-                name             = name,
-                platform         = Platform.STEAM,
-                steam_appid      = appid,
-                runner           = "steam",
-                art_path         = art,
-                install_dir      = install_dir,
-                playtime_minutes = playtimes.get(appid, 0),
-                last_played      = 0,  # could read from localconfig too
-                _mtime           = acf_path.stat().st_mtime,
+                slug=slug,
+                name=name,
+                platform=Platform.STEAM,
+                steam_appid=appid,
+                runner="steam",
+                art_path=art,
+                install_dir=install_dir,
+                playtime_minutes=playtimes.get(appid, 0),
+                last_played=0,  # could read from localconfig too
+                _mtime=acf_path.stat().st_mtime,
             )
             games.append(game)
 

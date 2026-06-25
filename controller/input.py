@@ -29,7 +29,7 @@ Axis layout:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 import pygame
 
@@ -37,74 +37,81 @@ import pygame
 # Named actions the UI cares about
 # ---------------------------------------------------------------------------
 
+
 class Action(Enum):
-    NAV_UP     = auto()
-    NAV_DOWN   = auto()
-    NAV_LEFT   = auto()
-    NAV_RIGHT  = auto()
-    CONFIRM    = auto()   # Cross  ✕ → launch
-    BACK       = auto()   # Circle ◯ → back / close overlay
-    DETAILS    = auto()   # Triangle △ → open details overlay
-    HIDE       = auto()   # Square □ → hide/unhide selected game
-    SHOW_HIDDEN= auto()   # Create/Select → toggle showing hidden entries
-    PAGE_LEFT  = auto()   # L1
-    PAGE_RIGHT = auto()   # R1
-    REFRESH    = auto()   # Options → reimport library
-    QUIT       = auto()   # keyboard ESC
-    HELP       = auto()   # F1 → show keybinds overlay
+    NAV_UP = auto()
+    NAV_DOWN = auto()
+    NAV_LEFT = auto()
+    NAV_RIGHT = auto()
+    CONFIRM = auto()  # Cross  ✕ → launch
+    BACK = auto()  # Circle ◯ → back / close overlay
+    DETAILS = auto()  # Triangle △ → open details overlay
+    HIDE = auto()  # Square □ → hide/unhide selected game
+    SHOW_HIDDEN = auto()  # Create/Select → toggle showing hidden entries
+    PAGE_LEFT = auto()  # L1
+    PAGE_RIGHT = auto()  # R1
+    REFRESH = auto()  # Options → reimport library
+    QUIT = auto()  # keyboard ESC
+    HELP = auto()  # F1 → show keybinds overlay
     MOUSE_CLICK = auto()  # left mouse click (carries position via event data)
     MOUSE_DBLCLICK = auto()  # double-click
-    SCROLL_UP  = auto()   # mouse wheel up
-    SCROLL_DOWN= auto()   # mouse wheel down
+    SCROLL_UP = auto()  # mouse wheel up
+    SCROLL_DOWN = auto()  # mouse wheel down
 
 
 # ---------------------------------------------------------------------------
 # Deadzone / repeat constants
 # ---------------------------------------------------------------------------
 
-STICK_DEADZONE    = 0.25     # lowered deadzone for snappier analog responsiveness
-STICK_REPEAT_INIT = 0.25     # reduced delay before first repeat (250ms)
-STICK_REPEAT_RATE = 0.08     # snappier repeating scroll (80ms)
+STICK_DEADZONE = 0.25  # lowered deadzone for snappier analog responsiveness
+STICK_REPEAT_INIT = 0.25  # reduced delay before first repeat (250ms)
+STICK_REPEAT_RATE = 0.08  # snappier repeating scroll (80ms)
 
-HAT_REPEAT_INIT   = 0.22     # 220ms initial delay
-HAT_REPEAT_RATE   = 0.06     # 60ms repeat interval for D-Pad navigation
+HAT_REPEAT_INIT = 0.22  # 220ms initial delay
+HAT_REPEAT_RATE = 0.06  # 60ms repeat interval for D-Pad navigation
 
 # Keyboard repeat (for arrow keys / WASD held down)
-KEY_REPEAT_INIT   = 0.22     # 220ms initial delay
-KEY_REPEAT_RATE   = 0.05     # 50ms repeat interval for rapid keyboard scroll
+KEY_REPEAT_INIT = 0.22  # 220ms initial delay
+KEY_REPEAT_RATE = 0.05  # 50ms repeat interval for rapid keyboard scroll
 
 DPAD_MAP = {
-    ( 0,  1): Action.NAV_UP,
-    ( 0, -1): Action.NAV_DOWN,
-    (-1,  0): Action.NAV_LEFT,
-    ( 1,  0): Action.NAV_RIGHT,
+    (0, 1): Action.NAV_UP,
+    (0, -1): Action.NAV_DOWN,
+    (-1, 0): Action.NAV_LEFT,
+    (1, 0): Action.NAV_RIGHT,
 }
 
 BUTTON_ACTION = {
-    0:  Action.CONFIRM,
-    1:  Action.BACK,
-    2:  Action.DETAILS,     # Square -> Details
-    3:  Action.DETAILS,     # Triangle -> Details
-    9:  Action.PAGE_LEFT,
+    0: Action.CONFIRM,
+    1: Action.BACK,
+    2: Action.DETAILS,  # Square -> Details
+    3: Action.DETAILS,  # Triangle -> Details
+    9: Action.PAGE_LEFT,
     10: Action.PAGE_RIGHT,
-    4:  Action.SHOW_HIDDEN, # Create / Select
-    6:  Action.REFRESH,     # Options
-    11: Action.HIDE,        # Dpad Up -> Hide item
+    4: Action.SHOW_HIDDEN,  # Create / Select
+    6: Action.REFRESH,  # Options
+    11: Action.HIDE,  # Dpad Up -> Hide item
 }
 
 # Stick directions → action
 STICK_ACTION: dict[tuple[int, int], Action] = {
     # (axis_index, sign)
     (1, -1): Action.NAV_UP,
-    (1,  1): Action.NAV_DOWN,
+    (1, 1): Action.NAV_DOWN,
     (0, -1): Action.NAV_LEFT,
-    (0,  1): Action.NAV_RIGHT,
+    (0, 1): Action.NAV_RIGHT,
 }
 
 # Keys that support held-repeat
 _REPEATABLE_KEYS = {
-    pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT,
-    pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d,
+    pygame.K_UP,
+    pygame.K_DOWN,
+    pygame.K_LEFT,
+    pygame.K_RIGHT,
+    pygame.K_w,
+    pygame.K_s,
+    pygame.K_a,
+    pygame.K_d,
 }
 
 
@@ -112,16 +119,18 @@ _REPEATABLE_KEYS = {
 # Repeat state tracker
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class _RepeatState:
     action: Action | None = None
-    timer:  float = 0.0
-    phase:  int   = 0      # 0 = initial delay, 1 = repeating
+    timer: float = 0.0
+    phase: int = 0  # 0 = initial delay, 1 = repeating
 
 
 # ---------------------------------------------------------------------------
 # InputHandler
 # ---------------------------------------------------------------------------
+
 
 class InputHandler:
     """
@@ -133,10 +142,10 @@ class InputHandler:
     def __init__(self):
         self._controller: pygame.joystick.JoystickType | None = None
         self._hat_state: tuple[int, int] = (0, 0)
-        self._stick_dir: tuple[int, int] = (0, 0)   # (x_sign, y_sign)
-        self._hat_repeat   = _RepeatState()
+        self._stick_dir: tuple[int, int] = (0, 0)  # (x_sign, y_sign)
+        self._hat_repeat = _RepeatState()
         self._stick_repeat = _RepeatState()
-        self._quit_held    = 0.0   # seconds start button held
+        self._quit_held = 0.0  # seconds start button held
 
         # Keyboard repeat state
         self._held_key: int | None = None
@@ -159,8 +168,10 @@ class InputHandler:
                 self._controller = pygame.joystick.Joystick(0)
                 self._controller.init()
                 name = self._controller.get_name()
-                print(f"[input] Controller: {name} ({self._controller.get_numbuttons()} buttons, "
-                      f"{self._controller.get_numaxes()} axes)")
+                print(
+                    f"[input] Controller: {name} ({self._controller.get_numbuttons()} buttons, "
+                    f"{self._controller.get_numaxes()} axes)"
+                )
             else:
                 self._controller = None
                 print("[input] No controller detected. Keyboard + mouse navigation.")
@@ -185,10 +196,14 @@ class InputHandler:
     # -----------------------------------------------------------------------
     def _action_from_stick(self) -> Action | None:
         sx, sy = self._stick_dir
-        if sy == -1: return Action.NAV_UP
-        if sy ==  1: return Action.NAV_DOWN
-        if sx == -1: return Action.NAV_LEFT
-        if sx ==  1: return Action.NAV_RIGHT
+        if sy == -1:
+            return Action.NAV_UP
+        if sy == 1:
+            return Action.NAV_DOWN
+        if sx == -1:
+            return Action.NAV_LEFT
+        if sx == 1:
+            return Action.NAV_RIGHT
         return None
 
     def _action_from_hat(self) -> Action | None:
@@ -211,7 +226,8 @@ class InputHandler:
                 if event.key in _REPEATABLE_KEYS and key_actions:
                     self._held_key = event.key
                     self._key_repeat = _RepeatState(
-                        action=key_actions[0], timer=0.0, phase=0)
+                        action=key_actions[0], timer=0.0, phase=0
+                    )
 
             elif event.type == pygame.KEYUP:
                 if event.key == self._held_key:
@@ -223,6 +239,7 @@ class InputHandler:
                 if event.button == 1:  # left click
                     self.mouse_pos = event.pos
                     import time
+
                     now = time.monotonic()
                     if now - self._last_click_time < self._dblclick_threshold:
                         actions.append(Action.MOUSE_DBLCLICK)
@@ -257,8 +274,8 @@ class InputHandler:
                 if act:
                     actions.append(act)
                     self._hat_repeat.action = act
-                    self._hat_repeat.timer  = 0.0
-                    self._hat_repeat.phase  = 0
+                    self._hat_repeat.timer = 0.0
+                    self._hat_repeat.phase = 0
 
             # Joystick axis (controller re-connect)
             elif event.type == pygame.JOYDEVICEADDED:
@@ -274,7 +291,9 @@ class InputHandler:
         # --- Keyboard repeat logic ------------------------------------------
         if self._held_key is not None and self._key_repeat.action:
             self._key_repeat.timer += dt
-            threshold = KEY_REPEAT_INIT if self._key_repeat.phase == 0 else KEY_REPEAT_RATE
+            threshold = (
+                KEY_REPEAT_INIT if self._key_repeat.phase == 0 else KEY_REPEAT_RATE
+            )
             if self._key_repeat.timer >= threshold:
                 self._key_repeat.timer = 0.0
                 self._key_repeat.phase = 1
@@ -289,13 +308,15 @@ class InputHandler:
             if act:
                 actions.append(act)
                 self._stick_repeat.action = act
-                self._stick_repeat.timer  = 0.0
-                self._stick_repeat.phase  = 0
+                self._stick_repeat.timer = 0.0
+                self._stick_repeat.phase = 0
 
         # --- Repeat logic (hat) --------------------------------------------
         if self._hat_repeat.action:
             self._hat_repeat.timer += dt
-            threshold = HAT_REPEAT_INIT if self._hat_repeat.phase == 0 else HAT_REPEAT_RATE
+            threshold = (
+                HAT_REPEAT_INIT if self._hat_repeat.phase == 0 else HAT_REPEAT_RATE
+            )
             if self._hat_repeat.timer >= threshold:
                 self._hat_repeat.timer = 0.0
                 self._hat_repeat.phase = 1
@@ -307,7 +328,11 @@ class InputHandler:
         # --- Repeat logic (stick) ------------------------------------------
         if self._stick_repeat.action:
             self._stick_repeat.timer += dt
-            threshold = STICK_REPEAT_INIT if self._stick_repeat.phase == 0 else STICK_REPEAT_RATE
+            threshold = (
+                STICK_REPEAT_INIT
+                if self._stick_repeat.phase == 0
+                else STICK_REPEAT_RATE
+            )
             if self._stick_repeat.timer >= threshold:
                 self._stick_repeat.timer = 0.0
                 self._stick_repeat.phase = 1
@@ -323,23 +348,23 @@ class InputHandler:
     def _key_actions(self, key: int) -> list[Action]:
         """Keyboard fallback mappings."""
         mapping = {
-            pygame.K_UP:     Action.NAV_UP,
-            pygame.K_DOWN:   Action.NAV_DOWN,
-            pygame.K_LEFT:   Action.NAV_LEFT,
-            pygame.K_RIGHT:  Action.NAV_RIGHT,
-            pygame.K_w:      Action.NAV_UP,
-            pygame.K_s:      Action.NAV_DOWN,
-            pygame.K_a:      Action.NAV_LEFT,
-            pygame.K_d:      Action.NAV_RIGHT,
+            pygame.K_UP: Action.NAV_UP,
+            pygame.K_DOWN: Action.NAV_DOWN,
+            pygame.K_LEFT: Action.NAV_LEFT,
+            pygame.K_RIGHT: Action.NAV_RIGHT,
+            pygame.K_w: Action.NAV_UP,
+            pygame.K_s: Action.NAV_DOWN,
+            pygame.K_a: Action.NAV_LEFT,
+            pygame.K_d: Action.NAV_RIGHT,
             pygame.K_RETURN: Action.CONFIRM,
-            pygame.K_SPACE:  Action.CONFIRM,
+            pygame.K_SPACE: Action.CONFIRM,
             pygame.K_ESCAPE: Action.BACK,
-            pygame.K_F5:     Action.REFRESH,
-            pygame.K_F1:     Action.HELP,
-            pygame.K_h:      Action.HIDE,
-            pygame.K_TAB:    Action.SHOW_HIDDEN,
-            pygame.K_i:      Action.DETAILS,
-            pygame.K_PAGEUP:   Action.PAGE_LEFT,
+            pygame.K_F5: Action.REFRESH,
+            pygame.K_F1: Action.HELP,
+            pygame.K_h: Action.HIDE,
+            pygame.K_TAB: Action.SHOW_HIDDEN,
+            pygame.K_i: Action.DETAILS,
+            pygame.K_PAGEUP: Action.PAGE_LEFT,
             pygame.K_PAGEDOWN: Action.PAGE_RIGHT,
         }
         return [mapping[key]] if key in mapping else []

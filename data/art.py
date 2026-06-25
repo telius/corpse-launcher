@@ -27,6 +27,7 @@ import data.sgdb as sgdb
 # LRU surface cache  (slug → Surface at a specific size)
 # ---------------------------------------------------------------------------
 
+
 class _LRUCache:
     def __init__(self, maxsize: int = 300):
         self._store: OrderedDict[str, pygame.Surface] = OrderedDict()
@@ -59,8 +60,8 @@ def _cache_key(slug: str, w: int, h: int) -> str:
 _surface_cache = _LRUCache(maxsize=400)
 
 # Slugs currently being fetched from SGDB in a background thread
-_fetching:   set[str] = set()
-_fetch_lock  = threading.Lock()
+_fetching: set[str] = set()
+_fetch_lock = threading.Lock()
 
 # Slugs that failed SGDB lookup — don't retry
 _sgdb_failed: set[str] = set()
@@ -70,6 +71,7 @@ _sgdb_failed: set[str] = set()
 # Placeholder surface
 # ---------------------------------------------------------------------------
 
+
 def _make_placeholder(game: Game, w: int, h: int) -> pygame.Surface:
     surf = pygame.Surface((w, h), pygame.SRCALPHA)
     surf.fill(config.BG_CARD)
@@ -77,7 +79,7 @@ def _make_placeholder(game: Game, w: int, h: int) -> pygame.Surface:
     # Violet gradient overlay (top half)
     for y in range(h // 2):
         alpha = int(90 * (1 - y / max(1, h / 2)))
-        line  = pygame.Surface((w, 1), pygame.SRCALPHA)
+        line = pygame.Surface((w, 1), pygame.SRCALPHA)
         line.fill((*config.VIOLET, alpha))
         surf.blit(line, (0, y))
 
@@ -90,12 +92,13 @@ def _make_placeholder(game: Game, w: int, h: int) -> pygame.Surface:
     # Title text
     font_size = max(10, w // 12)
     try:
-        font = pygame.font.SysFont("Inter,DejaVuSans,Liberation Sans,sans",
-                                   font_size, bold=True)
+        font = pygame.font.SysFont(
+            "Inter,DejaVuSans,Liberation Sans,sans", font_size, bold=True
+        )
     except Exception:
         font = pygame.font.Font(None, font_size + 4)
 
-    words   = game.name.split()
+    words = game.name.split()
     lines: list[str] = []
     current = ""
     for word in words:
@@ -118,8 +121,7 @@ def _make_placeholder(game: Game, w: int, h: int) -> pygame.Surface:
     # Platform badge bottom
     badge_size = max(9, w // 16)
     try:
-        bfont = pygame.font.SysFont("Inter,DejaVuSans,Liberation Sans,sans",
-                                    badge_size)
+        bfont = pygame.font.SysFont("Inter,DejaVuSans,Liberation Sans,sans", badge_size)
     except Exception:
         bfont = pygame.font.Font(None, badge_size + 3)
     blabel = bfont.render(game.display_platform_label().upper(), True, config.GREY)
@@ -131,6 +133,7 @@ def _make_placeholder(game: Game, w: int, h: int) -> pygame.Surface:
 # ---------------------------------------------------------------------------
 # Disk image loader
 # ---------------------------------------------------------------------------
+
 
 def _load_surface(path: Path, w: int, h: int) -> Optional[pygame.Surface]:
     try:
@@ -145,6 +148,7 @@ def _load_surface(path: Path, w: int, h: int) -> Optional[pygame.Surface]:
 # ---------------------------------------------------------------------------
 # Background SGDB fetch thread
 # ---------------------------------------------------------------------------
+
 
 def _fetch_in_background(game: Game):
     """Download art from SGDB in a background thread."""
@@ -169,13 +173,14 @@ def _fetch_in_background(game: Game):
         for k in list(_surface_cache._store.keys()):
             if k.startswith(f"{slug}:"):
                 _surface_cache.discard(k)
-        game.art_path   = path
+        game.art_path = path
         game.art_loaded = True
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def get_surface(game: Game, w: int, h: int) -> pygame.Surface:
     """
@@ -222,9 +227,7 @@ def get_surface(game: Game, w: int, h: int) -> pygame.Surface:
     # 3. Trigger SGDB background fetch (once per slug)
     slug = game.slug
     with _fetch_lock:
-        if (slug not in _fetching
-                and slug not in _sgdb_failed
-                and sgdb.has_key()):
+        if slug not in _fetching and slug not in _sgdb_failed and sgdb.has_key():
             _fetching.add(slug)
             t = threading.Thread(
                 target=_fetch_in_background,
@@ -255,6 +258,7 @@ def invalidate(slug: str):
 def swap_to_next_art(game: Game) -> bool:
     """Fetch next available grid from SGDB, download and overwrite local cache."""
     import json
+
     if not sgdb.has_key():
         return False
 
@@ -267,7 +271,9 @@ def swap_to_next_art(game: Game) -> bool:
     dimensions = config.get("art", "sgdb_dimensions")
     urls = sgdb.fetch_all_grid_urls(sgdb_id, style, dimensions)
     if not urls:
-        print(f"[art] No grids found matching style={style} dimensions={dimensions} for {game.name}")
+        print(
+            f"[art] No grids found matching style={style} dimensions={dimensions} for {game.name}"
+        )
         return False
 
     art_selections_file = config.CONFIG_DIR / "art_selections.json"
@@ -288,14 +294,18 @@ def swap_to_next_art(game: Game) -> bool:
     next_url = urls[next_idx]
 
     dest = sgdb._cache_path(game.slug)
-    print(f"[art] Swapping art for {game.name} from index {idx} to {next_idx} (total {len(urls)})")
+    print(
+        f"[art] Swapping art for {game.name} from index {idx} to {next_idx} (total {len(urls)})"
+    )
     if sgdb.download_url_to_path(next_url, dest):
         selections[game.slug] = next_url
         try:
-            art_selections_file.write_text(json.dumps(selections, indent=2), encoding="utf-8")
+            art_selections_file.write_text(
+                json.dumps(selections, indent=2), encoding="utf-8"
+            )
         except Exception as e:
             print(f"[art] Failed to save art selections: {e}")
-        
+
         # Invalidate cached surfaces
         invalidate(game.slug)
         game.art_path = dest

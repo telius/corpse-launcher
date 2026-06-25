@@ -6,7 +6,6 @@ Deduplication: same slug → keep entry with newest mtime / highest id.
 """
 
 from __future__ import annotations
-import os
 import re
 import sqlite3
 import yaml
@@ -21,16 +20,16 @@ from data.game import Game, Platform
 # Runner → Platform mapping
 # ---------------------------------------------------------------------------
 _RUNNER_PLATFORM: dict[str, Platform] = {
-    "steam":     Platform.STEAM,
-    "gog":       Platform.GOG,
-    "epic":      Platform.EPIC,
+    "steam": Platform.STEAM,
+    "gog": Platform.GOG,
+    "epic": Platform.EPIC,
     "battlenet": Platform.BATTLENET,
-    "lutris":    Platform.LUTRIS,
-    "wine":      Platform.LUTRIS,
-    "dosbox":    Platform.LUTRIS,
-    "native":    Platform.LUTRIS,
-    "scummvm":   Platform.LUTRIS,
-    "ppsspp":    Platform.LUTRIS,
+    "lutris": Platform.LUTRIS,
+    "wine": Platform.LUTRIS,
+    "dosbox": Platform.LUTRIS,
+    "native": Platform.LUTRIS,
+    "scummvm": Platform.LUTRIS,
+    "ppsspp": Platform.LUTRIS,
 }
 
 # Slugs that indicate Lutris-wrapped Steam games
@@ -68,6 +67,7 @@ def _find_lutris_art(slug: str) -> Optional[Path]:
 # pga.db import (primary)
 # ---------------------------------------------------------------------------
 
+
 def _import_from_pga(db_path: Path) -> list[Game]:
     games: list[Game] = []
     try:
@@ -89,15 +89,15 @@ def _import_from_pga(db_path: Path) -> list[Game]:
         return games
 
     for row in rows:
-        raw_slug  = str(row["slug"] or "")
+        raw_slug = str(row["slug"] or "")
         norm_slug = _normalise_slug(raw_slug)
-        name      = str(row["name"] or "").strip()
-        runner    = str(row["runner"] or "").lower()
+        name = str(row["name"] or "").strip()
+        runner = str(row["runner"] or "").lower()
         if not name:
             continue
 
         platform = _detect_platform(runner, norm_slug)
-        art      = _find_lutris_art(norm_slug) or _find_lutris_art(raw_slug)
+        art = _find_lutris_art(norm_slug) or _find_lutris_art(raw_slug)
 
         install_dir = None
         d = row["directory"]
@@ -117,21 +117,21 @@ def _import_from_pga(db_path: Path) -> list[Game]:
                 steam_appid = m2.group(1)
 
         game = Game(
-            slug             = norm_slug or f"lutris-{row['id']}",
-            name             = name,
-            platform         = platform,
-            steam_appid      = steam_appid,
-            lutris_id        = int(row["id"]),
-            lutris_slug      = raw_slug,
-            runner           = runner,
-            art_path         = art,
-            install_dir      = install_dir,
-            playtime_minutes = int(row["playtime"] or 0),
-            last_played      = int(row["lastplayed"] or 0),
-            year             = row["year"],
-            launch_via_lutris = True,
-            lutris_launch_id  = int(row["id"]),
-            _mtime            = float(row["id"]),   # higher id = newer entry
+            slug=norm_slug or f"lutris-{row['id']}",
+            name=name,
+            platform=platform,
+            steam_appid=steam_appid,
+            lutris_id=int(row["id"]),
+            lutris_slug=raw_slug,
+            runner=runner,
+            art_path=art,
+            install_dir=install_dir,
+            playtime_minutes=int(row["playtime"] or 0),
+            last_played=int(row["lastplayed"] or 0),
+            year=row["year"],
+            launch_via_lutris=True,
+            lutris_launch_id=int(row["id"]),
+            _mtime=float(row["id"]),  # higher id = newer entry
         )
         games.append(game)
 
@@ -143,13 +143,15 @@ def _import_from_pga(db_path: Path) -> list[Game]:
 # YAML fallback
 # ---------------------------------------------------------------------------
 
+
 def _import_from_yaml(games_dirs: list[Path]) -> list[Game]:
     games: list[Game] = []
     for games_dir in games_dirs:
         if not games_dir.exists():
             continue
-        for yml_path in sorted(games_dir.glob("*.yml"),
-                               key=lambda p: p.stat().st_mtime):
+        for yml_path in sorted(
+            games_dir.glob("*.yml"), key=lambda p: p.stat().st_mtime
+        ):
             try:
                 data = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
             except Exception:
@@ -157,25 +159,25 @@ def _import_from_yaml(games_dirs: list[Path]) -> list[Game]:
             if not isinstance(data, dict):
                 continue
 
-            name     = str(data.get("name", "")).strip()
+            name = str(data.get("name", "")).strip()
             raw_slug = str(data.get("game_slug") or data.get("slug") or "")
-            runner   = str(data.get("runner") or "").lower()
+            runner = str(data.get("runner") or "").lower()
             if not name:
                 continue
 
             norm_slug = _normalise_slug(raw_slug) or _normalise_slug(yml_path.stem)
-            platform  = _detect_platform(runner, norm_slug)
-            art       = _find_lutris_art(norm_slug)
+            platform = _detect_platform(runner, norm_slug)
+            art = _find_lutris_art(norm_slug)
 
             game = Game(
-                slug             = norm_slug or yml_path.stem,
-                name             = name,
-                platform         = platform,
-                runner           = runner,
-                art_path         = art,
-                year             = data.get("year"),
-                launch_via_lutris = True,
-                _mtime            = yml_path.stat().st_mtime,
+                slug=norm_slug or yml_path.stem,
+                name=name,
+                platform=platform,
+                runner=runner,
+                art_path=art,
+                year=data.get("year"),
+                launch_via_lutris=True,
+                _mtime=yml_path.stat().st_mtime,
             )
             games.append(game)
 
@@ -186,6 +188,7 @@ def _import_from_yaml(games_dirs: list[Path]) -> list[Game]:
 # ---------------------------------------------------------------------------
 # Deduplication
 # ---------------------------------------------------------------------------
+
 
 def _deduplicate(games: list[Game]) -> list[Game]:
     """
@@ -203,6 +206,7 @@ def _deduplicate(games: list[Game]) -> list[Game]:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def import_games() -> list[Game]:
     """
     Return a deduplicated list of Lutris games.
@@ -213,10 +217,12 @@ def import_games() -> list[Game]:
     if config.LUTRIS_PGA_DB.exists():
         games = _import_from_pga(config.LUTRIS_PGA_DB)
     else:
-        games = _import_from_yaml([
-            config.LUTRIS_GAMES_DIR,
-            config.LUTRIS_GAMES_DIR2,
-        ])
+        games = _import_from_yaml(
+            [
+                config.LUTRIS_GAMES_DIR,
+                config.LUTRIS_GAMES_DIR2,
+            ]
+        )
 
     deduped = _deduplicate(games)
     print(f"[lutris] After dedup: {len(deduped)} unique games.")

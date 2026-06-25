@@ -12,24 +12,31 @@ class TopBar:
     HEIGHT = 48
 
     def __init__(self, rect: pygame.Rect):
-        self.rect    = rect
-        self._pulse  = Pulse(period=3.0, lo=0.6, hi=1.0)
-        self._pval   = 1.0
+        self.rect = rect
+        self._pulse = Pulse(period=3.0, lo=0.6, hi=1.0)
+        self._pval = 1.0
 
         try:
-            self._title_font  = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 22, bold=True)
-            self._meta_font   = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 13)
+            self._title_font = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", 22, bold=True
+            )
+            self._meta_font = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", 13
+            )
         except Exception:
-            self._title_font  = pygame.font.Font(None, 28)
-            self._meta_font   = pygame.font.Font(None, 16)
+            self._title_font = pygame.font.Font(None, 28)
+            self._meta_font = pygame.font.Font(None, 16)
 
     def update(self, dt: float):
         self._pval = self._pulse.update(dt)
 
-    def draw(self, surface: pygame.Surface, game_count: int,
-             has_controller: bool, status: str = ""):
+    def draw(
+        self,
+        surface: pygame.Surface,
+        game_count: int,
+        has_controller: bool,
+        status: str = "",
+    ):
         # Background bar
         bar = pygame.Surface(self.rect.size, pygame.SRCALPHA)
         bar.fill((*config.BG_PANEL, 230))
@@ -42,8 +49,9 @@ class TopBar:
                 c = _lerp_colour(config.VIOLET, config.MAGENTA, t * 2)
             else:
                 c = _lerp_colour(config.MAGENTA, config.CYAN, (t - 0.5) * 2)
-            pygame.draw.line(bar, c, (x, self.rect.height - 1),
-                             (x, self.rect.height - 1))
+            pygame.draw.line(
+                bar, c, (x, self.rect.height - 1), (x, self.rect.height - 1)
+            )
 
         # Title
         pv = self._pval

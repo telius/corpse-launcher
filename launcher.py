@@ -4,17 +4,18 @@ Game launcher — fires the correct subprocess for Steam / Lutris / native.
 
 from __future__ import annotations
 import subprocess
-import os
 
 from data.game import Game, Platform
 
 
 def launch(game: Game):
     """Launch the given game using the appropriate method."""
-    print(f"[launch] Launching '{game.name}' "
-          f"(platform={game.platform.value}, "
-          f"via_lutris={game.launch_via_lutris}, "
-          f"lutris_id={game.lutris_launch_id})")
+    print(
+        f"[launch] Launching '{game.name}' "
+        f"(platform={game.platform.value}, "
+        f"via_lutris={game.launch_via_lutris}, "
+        f"lutris_id={game.lutris_launch_id})"
+    )
 
     try:
         # Swap workspace to workspace 5 using swaymsg
@@ -30,7 +31,9 @@ def launch(game: Game):
         elif game.launch_via_lutris and game.lutris_slug:
             _launch_lutris_slug(game.lutris_slug)
         else:
-            print(f"[launch] Don't know how to launch '{game.name}' — no appid or lutris id.")
+            print(
+                f"[launch] Don't know how to launch '{game.name}' — no appid or lutris id."
+            )
     except Exception as e:
         print(f"[launch] Error launching '{game.name}': {e}")
 

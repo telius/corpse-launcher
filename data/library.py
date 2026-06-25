@@ -14,7 +14,7 @@ import re
 from typing import Optional
 
 from data.game import Game, Platform
-import importer.steam  as steam_importer
+import importer.steam as steam_importer
 import importer.lutris as lutris_importer
 import config
 
@@ -24,6 +24,7 @@ import config
 # ---------------------------------------------------------------------------
 
 _ARTICLES = re.compile(r"^(the|a|an)\s+", re.IGNORECASE)
+
 
 def _canonical_slug(name: str) -> str:
     """
@@ -39,6 +40,7 @@ def _canonical_slug(name: str) -> str:
 # Merge logic
 # ---------------------------------------------------------------------------
 
+
 def _merge(steam_games: list[Game], lutris_games: list[Game]) -> list[Game]:
     """
     Produce a single deduplicated list, preferring Lutris for launching
@@ -47,7 +49,7 @@ def _merge(steam_games: list[Game], lutris_games: list[Game]) -> list[Game]:
     result: dict[str, Game] = {}
 
     # Index steam games by slug and by appid
-    steam_by_slug:  dict[str, Game] = {}
+    steam_by_slug: dict[str, Game] = {}
     steam_by_appid: dict[str, Game] = {}
     for g in steam_games:
         steam_by_slug[g.slug] = g
@@ -55,7 +57,7 @@ def _merge(steam_games: list[Game], lutris_games: list[Game]) -> list[Game]:
             steam_by_appid[g.steam_appid] = g
 
     # Index lutris games by slug and by steam_appid (if runner=steam)
-    lutris_by_slug:  dict[str, Game] = {}
+    lutris_by_slug: dict[str, Game] = {}
     lutris_by_appid: dict[str, Game] = {}
     for g in lutris_games:
         lutris_by_slug[g.slug] = g
@@ -67,28 +69,28 @@ def _merge(steam_games: list[Game], lutris_games: list[Game]) -> list[Game]:
         # Check if Lutris has an entry for the same Steam appid
         lg_appid: Optional[Game] = lutris_by_appid.get(sg.steam_appid or "")
         # Check by slug
-        lg_slug:  Optional[Game] = lutris_by_slug.get(sg.slug)
+        lg_slug: Optional[Game] = lutris_by_slug.get(sg.slug)
         lg = lg_appid or lg_slug
 
         if lg:
             # Merge: keep Steam metadata (name, appid, art fallbacks),
             # but route launch through Lutris
             merged = Game(
-                slug             = sg.slug,
-                name             = sg.name or lg.name,
-                platform         = Platform.STEAM,
-                steam_appid      = sg.steam_appid,
-                lutris_id        = lg.lutris_id,
-                lutris_slug      = lg.lutris_slug,
-                runner           = sg.runner,
-                art_path         = sg.art_path or lg.art_path,
-                install_dir      = sg.install_dir or lg.install_dir,
-                playtime_minutes = sg.playtime_minutes or lg.playtime_minutes,
-                last_played      = sg.last_played,
-                year             = sg.year or lg.year,
-                launch_via_lutris = True,
-                lutris_launch_id  = lg.lutris_id,
-                _mtime           = sg._mtime,
+                slug=sg.slug,
+                name=sg.name or lg.name,
+                platform=Platform.STEAM,
+                steam_appid=sg.steam_appid,
+                lutris_id=lg.lutris_id,
+                lutris_slug=lg.lutris_slug,
+                runner=sg.runner,
+                art_path=sg.art_path or lg.art_path,
+                install_dir=sg.install_dir or lg.install_dir,
+                playtime_minutes=sg.playtime_minutes or lg.playtime_minutes,
+                last_played=sg.last_played,
+                year=sg.year or lg.year,
+                launch_via_lutris=True,
+                lutris_launch_id=lg.lutris_id,
+                _mtime=sg._mtime,
             )
             result[merged.slug] = merged
         else:
@@ -111,6 +113,7 @@ def _merge(steam_games: list[Game], lutris_games: list[Game]) -> list[Game]:
 # Sorting
 # ---------------------------------------------------------------------------
 
+
 def _sort(games: list[Game]) -> list[Game]:
     sort_by = config.get("general", "sort_by")
     match sort_by:
@@ -128,6 +131,7 @@ def _sort(games: list[Game]) -> list[Game]:
 
 _library_cache: Optional[list[Game]] = None
 
+
 def load(force: bool = False) -> list[Game]:
     """
     Load and merge the complete game library.
@@ -139,7 +143,7 @@ def load(force: bool = False) -> list[Game]:
         return _library_cache
 
     print("[library] Importing Steam games...")
-    steam_games  = steam_importer.import_games()
+    steam_games = steam_importer.import_games()
 
     print("[library] Importing Lutris games...")
     lutris_games = lutris_importer.import_games()

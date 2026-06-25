@@ -7,7 +7,7 @@ from __future__ import annotations
 import pygame
 
 import config
-from data.game import Game, Platform
+from data.game import Game
 import data.art as art
 from ui.animations import lerp
 
@@ -20,21 +20,21 @@ class Grid:
 
     # Target card width — actual width may be wider to fill evenly
     TARGET_CARD_W = 190
-    MIN_COLS      = 2
-    MAX_COLS      = 8
-    GAP           = 20   # increased from 12 for more breathing room
+    MIN_COLS = 2
+    MAX_COLS = 8
+    GAP = 20  # increased from 12 for more breathing room
 
     def __init__(self, games: list[Game], rect: pygame.Rect):
-        self.games    = games
-        self.rect     = rect
+        self.games = games
+        self.rect = rect
         self.selected = 0
         self._scroll_y = 0.0
         self._target_y = 0.0
 
-        self._font_size   = 0
-        self._title_font  = None
-        self._last_card_w = 0   # detect card size changes to re-cache fonts
-        self.dirty = True       # flag for dirty rendering
+        self._font_size = 0
+        self._title_font = None
+        self._last_card_w = 0  # detect card size changes to re-cache fonts
+        self.dirty = True  # flag for dirty rendering
 
     # -----------------------------------------------------------------------
     # Dynamic layout — all derived from self.rect live
@@ -73,7 +73,8 @@ class Grid:
         size = max(10, cw // 14)
         try:
             self._title_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", size)
+                "Inter,DejaVuSans,Liberation Sans,sans", size
+            )
         except Exception:
             self._title_font = pygame.font.Font(None, size + 4)
 
@@ -93,9 +94,9 @@ class Grid:
     def _card_rect(self, index: int) -> pygame.Rect:
         """Card rect in grid-local coordinates (before scroll applied)."""
         row = index // self.cols
-        col = index  % self.cols
-        x   = self.rect.x + self._h_offset + self.GAP + col * (self.card_w + self.GAP)
-        y   = self._v_offset + self.GAP + row * (self.card_h + self.GAP)
+        col = index % self.cols
+        x = self.rect.x + self._h_offset + self.GAP + col * (self.card_w + self.GAP)
+        y = self._v_offset + self.GAP + row * (self.card_h + self.GAP)
         return pygame.Rect(x, y, self.card_w, self.card_h)
 
     # -----------------------------------------------------------------------
@@ -106,18 +107,18 @@ class Grid:
         total = len(self.games)
         if not total:
             return
-        
+
         # Calculate current row and column
         cur_row = self.selected // self.cols
         cur_col = self.selected % self.cols
-        
+
         if dx != 0:
             # Horizontal wrap: stays within the same row bounds
             # Row length might be shorter on the last row
             row_start = cur_row * self.cols
             row_end = min(total, row_start + self.cols)
             row_length = row_end - row_start
-            
+
             # Wrap offset
             col_in_row = self.selected - row_start
             new_col = (col_in_row + dx) % row_length
@@ -146,10 +147,13 @@ class Grid:
     def page(self, direction: int):
         old = self.selected
         visible_rows = max(1, self.rect.height // (self.card_h + self.GAP))
-        self.selected = max(0, min(
-            len(self.games) - 1,
-            self.selected + direction * self.cols * visible_rows,
-        ))
+        self.selected = max(
+            0,
+            min(
+                len(self.games) - 1,
+                self.selected + direction * self.cols * visible_rows,
+            ),
+        )
         if self.selected != old:
             self._ensure_visible()
             self.dirty = True
@@ -191,11 +195,11 @@ class Grid:
         self._target_y = max(0.0, min(self._target_y, max_scroll))
 
     def set_games(self, games: list[Game]):
-        self.games     = games
-        self.selected  = 0
+        self.games = games
+        self.selected = 0
         self._scroll_y = 0.0
         self._target_y = 0.0
-        self.dirty     = True
+        self.dirty = True
 
     def resize(self, rect: pygame.Rect):
         self.rect = rect
@@ -225,8 +229,8 @@ class Grid:
             self.dirty = False
             return
 
-        cw     = self.card_w
-        ch     = self.card_h
+        cw = self.card_w
+        ch = self.card_h
         scroll = int(self._scroll_y)
 
         old_clip = surface.get_clip()
@@ -234,22 +238,27 @@ class Grid:
 
         for idx, game in enumerate(self.games):
             local = self._card_rect(idx)
-            sx    = local.x
-            sy    = local.y - scroll + self.rect.y
+            sx = local.x
+            sy = local.y - scroll + self.rect.y
 
             if sy + ch < self.rect.y:
                 continue
             if sy > self.rect.y + self.rect.height:
                 break
 
-            self._draw_card(surface, game, pygame.Rect(sx, sy, cw, ch),
-                            selected=(idx == self.selected))
+            self._draw_card(
+                surface,
+                game,
+                pygame.Rect(sx, sy, cw, ch),
+                selected=(idx == self.selected),
+            )
 
         surface.set_clip(old_clip)
         self.dirty = False
 
-    def _draw_card(self, surface: pygame.Surface, game: Game,
-                   rect: pygame.Rect, selected: bool):
+    def _draw_card(
+        self, surface: pygame.Surface, game: Game, rect: pygame.Rect, selected: bool
+    ):
         cw, ch = self.card_w, self.card_h
 
         # Fetch surface at current card size
@@ -263,16 +272,22 @@ class Grid:
             draw_rect = pygame.Rect(
                 rect.x - (nw - cw) // 2,
                 rect.y - (nh - ch) // 2,
-                nw, nh,
+                nw,
+                nh,
             )
-            
+
             # Draw multi-layered soft bloom shadow glow
             for i in range(8, 0, -2):
                 glow_rect = draw_rect.inflate(i, i)
                 glow_surf = pygame.Surface(glow_rect.size, pygame.SRCALPHA)
                 # Outer glow layers get more transparent
                 alpha = int(45 * (1 - i / 10))
-                pygame.draw.rect(glow_surf, (*config.VIOLET, alpha), glow_surf.get_rect(), border_radius=4)
+                pygame.draw.rect(
+                    glow_surf,
+                    (*config.VIOLET, alpha),
+                    glow_surf.get_rect(),
+                    border_radius=4,
+                )
                 surface.blit(glow_surf, glow_rect.topleft)
         else:
             draw_rect = rect
@@ -288,7 +303,13 @@ class Grid:
         if selected:
             pygame.draw.rect(surface, config.VIOLET, draw_rect, 3, border_radius=2)
             # Add inline cyan highlight line to card top edge
-            pygame.draw.line(surface, config.CYAN, (draw_rect.x + 2, draw_rect.y + 1), (draw_rect.x + draw_rect.width - 3, draw_rect.y + 1), 2)
+            pygame.draw.line(
+                surface,
+                config.CYAN,
+                (draw_rect.x + 2, draw_rect.y + 1),
+                (draw_rect.x + draw_rect.width - 3, draw_rect.y + 1),
+                2,
+            )
         else:
             pygame.draw.rect(surface, config.BORDER_BG, draw_rect, 1)
 
@@ -298,8 +319,8 @@ class Grid:
         except Exception:
             font = pygame.font.Font(None, 28)
         txt = font.render("No games found — loading library...", True, config.GREY)
-        cx  = self.rect.x + self.rect.width  // 2 - txt.get_width()  // 2
-        cy  = self.rect.y + self.rect.height // 2 - txt.get_height() // 2
+        cx = self.rect.x + self.rect.width // 2 - txt.get_width() // 2
+        cy = self.rect.y + self.rect.height // 2 - txt.get_height() // 2
         surface.blit(txt, (cx, cy))
 
     @property

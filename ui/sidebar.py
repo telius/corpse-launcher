@@ -10,14 +10,13 @@ import pygame
 import config
 from data.game import Game, Platform
 import data.hidden as hidden_store
-import ui.icons as icons
 from ui.animations import Tween
 
 
 def _colour_for_platform(p: Platform) -> tuple:
     return {
-        Platform.STEAM:     config.BADGE_STEAM,
-        Platform.LUTRIS:    config.BADGE_LUTRIS,
+        Platform.STEAM: config.BADGE_STEAM,
+        Platform.LUTRIS: config.BADGE_LUTRIS,
         Platform.BATTLENET: config.BADGE_BN,
     }.get(p, config.GREY)
 
@@ -45,43 +44,43 @@ class Sidebar:
     HINT_ICON_SIZE = 18
 
     def __init__(self, rect: pygame.Rect):
-        self.rect         = rect
+        self.rect = rect
         self._game: Optional[Game] = None
         self._art_surf: Optional[pygame.Surface] = None
-        self._alpha_tw    = Tween(0.0, 255.0, 0.22)
-        self._alpha       = 0.0
+        self._alpha_tw = Tween(0.0, 255.0, 0.22)
+        self._alpha = 0.0
         self._init_fonts()
 
     def _init_fonts(self):
         w = max(1, self.rect.width)
         try:
             self._title_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans",
-                max(14, w // 12), bold=True)
-            self._meta_font  = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans",
-                max(11, w // 18))
-            self._hint_font  = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans",
-                max(10, w // 22))
+                "Inter,DejaVuSans,Liberation Sans,sans", max(14, w // 12), bold=True
+            )
+            self._meta_font = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", max(11, w // 18)
+            )
+            self._hint_font = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", max(10, w // 22)
+            )
             self._badge_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans",
-                max(9, w // 24), bold=True)
+                "Inter,DejaVuSans,Liberation Sans,sans", max(9, w // 24), bold=True
+            )
         except Exception:
             self._title_font = pygame.font.Font(None, max(18, w // 10))
-            self._meta_font  = pygame.font.Font(None, max(14, w // 16))
-            self._hint_font  = pygame.font.Font(None, max(12, w // 20))
+            self._meta_font = pygame.font.Font(None, max(14, w // 16))
+            self._hint_font = pygame.font.Font(None, max(12, w // 20))
             self._badge_font = pygame.font.Font(None, max(11, w // 22))
 
     def set_game(self, game: Optional[Game]):
         if game is self._game:
             return
-        self._game     = game
+        self._game = game
         self._art_surf = None
         self._alpha_tw.reset(0.0, 255.0, 0.20)
 
     def resize(self, rect: pygame.Rect):
-        self.rect      = rect
+        self.rect = rect
         self._art_surf = None
         self._init_fonts()
 
@@ -91,6 +90,7 @@ class Sidebar:
 
         if self._game and self._art_surf is None:
             import data.art as art_mod
+
             tw = self.rect.width - 20
             th = int(tw * 900 / 600)
             self._art_surf = art_mod.get_surface(self._game, tw, th)
@@ -103,10 +103,12 @@ class Sidebar:
         panel.fill((*config.BG_PANEL, 242))
 
         # Left separator
-        pygame.draw.line(panel, config.BORDER_BG, (0, 16), (0, self.rect.height - 16), 1)
+        pygame.draw.line(
+            panel, config.BORDER_BG, (0, 16), (0, self.rect.height - 16), 1
+        )
 
-        w  = self.rect.width
-        y  = 12
+        w = self.rect.width
+        y = 12
 
         # ── Art ─────────────────────────────────────────────────────────────
         art_w = w - 20
@@ -116,8 +118,9 @@ class Sidebar:
             if a.get_size() != (art_w, art_h):
                 a = pygame.transform.smoothscale(a, (art_w, art_h))
             panel.blit(a, (10, y))
-            pygame.draw.rect(panel, config.BORDER_BG,
-                             pygame.Rect(10, y, art_w, art_h), 1)
+            pygame.draw.rect(
+                panel, config.BORDER_BG, pygame.Rect(10, y, art_w, art_h), 1
+            )
         y += art_h + 12
 
         # ── Platform badge ───────────────────────────────────────────────────
@@ -138,8 +141,11 @@ class Sidebar:
         # Hidden badge
         if hidden_store.is_hidden(self._game.slug):
             hs = self._badge_font.render("HIDDEN", True, config.BG_DEEP)
-            pygame.draw.rect(panel, config.MAGENTA,
-                             pygame.Rect(10, y, hs.get_width() + 10, hs.get_height() + 5))
+            pygame.draw.rect(
+                panel,
+                config.MAGENTA,
+                pygame.Rect(10, y, hs.get_width() + 10, hs.get_height() + 5),
+            )
             panel.blit(hs, (15, y + 2))
             y += hs.get_height() + 8
 

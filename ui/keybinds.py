@@ -11,31 +11,40 @@ import ui.icons as icons
 
 
 _KEYBINDS = [
-    ("Navigation", [
-        ("Arrow Keys / WASD",   "Move selection"),
-        ("Mouse Click",         "Select game"),
-        ("Mouse Wheel",         "Scroll grid"),
-        ("Page Up / Page Down", "Scroll by page"),
-    ]),
-    ("Actions", [
-        ("Enter / Space",       "Launch game"),
-        ("Double-Click",        "Launch game"),
-        ("I",                   "Details / Actions"),
-        ("H",                   "Hide / Unhide game"),
-        ("Tab",                 "Toggle show hidden"),
-        ("F5",                  "Refresh library"),
-    ]),
-    ("Controller", [
-        ("✕  Cross",            "Launch"),
-        ("△  Triangle",         "Details / Actions"),
-        ("□  Square",           "Details / Actions"),
-        ("○  Circle",           "Back / Close overlay"),
-        ("D-Pad Up",            "Hide / Unhide game"),
-        ("D-Pad / Left Stick",  "Navigate"),
-        ("L1 / R1",             "Page scroll"),
-        ("Create",              "Toggle show hidden"),
-        ("Options",             "Refresh library"),
-    ]),
+    (
+        "Navigation",
+        [
+            ("Arrow Keys / WASD", "Move selection"),
+            ("Mouse Click", "Select game"),
+            ("Mouse Wheel", "Scroll grid"),
+            ("Page Up / Page Down", "Scroll by page"),
+        ],
+    ),
+    (
+        "Actions",
+        [
+            ("Enter / Space", "Launch game"),
+            ("Double-Click", "Launch game"),
+            ("I", "Details / Actions"),
+            ("H", "Hide / Unhide game"),
+            ("Tab", "Toggle show hidden"),
+            ("F5", "Refresh library"),
+        ],
+    ),
+    (
+        "Controller",
+        [
+            ("✕  Cross", "Launch"),
+            ("△  Triangle", "Details / Actions"),
+            ("□  Square", "Details / Actions"),
+            ("○  Circle", "Back / Close overlay"),
+            ("D-Pad Up", "Hide / Unhide game"),
+            ("D-Pad / Left Stick", "Navigate"),
+            ("L1 / R1", "Page scroll"),
+            ("Create", "Toggle show hidden"),
+            ("Options", "Refresh library"),
+        ],
+    ),
 ]
 
 
@@ -50,15 +59,20 @@ class KeybindsOverlay:
     def _init_fonts(self):
         try:
             self._heading_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 20, bold=True)
+                "Inter,DejaVuSans,Liberation Sans,sans", 20, bold=True
+            )
             self._key_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 14, bold=True)
+                "Inter,DejaVuSans,Liberation Sans,sans", 14, bold=True
+            )
             self._desc_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 14)
+                "Inter,DejaVuSans,Liberation Sans,sans", 14
+            )
             self._title_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 28, bold=True)
+                "Inter,DejaVuSans,Liberation Sans,sans", 28, bold=True
+            )
             self._hint_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 12)
+                "Inter,DejaVuSans,Liberation Sans,sans", 12
+            )
         except Exception:
             self._heading_font = pygame.font.Font(None, 24)
             self._key_font = pygame.font.Font(None, 18)
@@ -128,16 +142,26 @@ class KeybindsOverlay:
                     # Extract Logical mapping name for icons
                     lower_label = key_label.lower()
                     mapped_name = None
-                    if "cross" in lower_label: mapped_name = "cross"
-                    elif "circle" in lower_label: mapped_name = "circle"
-                    elif "triangle" in lower_label: mapped_name = "triangle"
-                    elif "square" in lower_label: mapped_name = "square"
-                    elif "d-pad up" in lower_label: mapped_name = "dpad_up"
-                    elif "d-pad" in lower_label: mapped_name = "dpad"
-                    elif "l1" in lower_label: mapped_name = "l1"
-                    elif "r1" in lower_label: mapped_name = "r1"
-                    elif "create" in lower_label: mapped_name = "create"
-                    elif "options" in lower_label: mapped_name = "options"
+                    if "cross" in lower_label:
+                        mapped_name = "cross"
+                    elif "circle" in lower_label:
+                        mapped_name = "circle"
+                    elif "triangle" in lower_label:
+                        mapped_name = "triangle"
+                    elif "square" in lower_label:
+                        mapped_name = "square"
+                    elif "d-pad up" in lower_label:
+                        mapped_name = "dpad_up"
+                    elif "d-pad" in lower_label:
+                        mapped_name = "dpad"
+                    elif "l1" in lower_label:
+                        mapped_name = "l1"
+                    elif "r1" in lower_label:
+                        mapped_name = "r1"
+                    elif "create" in lower_label:
+                        mapped_name = "create"
+                    elif "options" in lower_label:
+                        mapped_name = "options"
 
                     if mapped_name:
                         icon_surf = icons.get(mapped_name, 18)
@@ -146,7 +170,9 @@ class KeybindsOverlay:
                     # Blit icon and draw label text next to it
                     iy = y + (self._key_font.get_height() - 18) // 2
                     panel.blit(icon_surf, (cx, iy))
-                    ks = self._key_font.render(key_label.split(None, 1)[-1], True, config.CYAN)
+                    ks = self._key_font.render(
+                        key_label.split(None, 1)[-1], True, config.CYAN
+                    )
                     panel.blit(ks, (cx + 24, y))
                 else:
                     ks = self._key_font.render(key_label, True, config.CYAN)

@@ -4,7 +4,6 @@ Stores hidden game slugs in ~/.config/corpse-launcher/hidden.txt (one per line).
 """
 
 from __future__ import annotations
-from pathlib import Path
 import config
 
 _HIDDEN_FILE = config.CONFIG_DIR / "hidden.txt"

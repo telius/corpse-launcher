@@ -44,34 +44,37 @@ class DetailsOverlay:
     on_launch callback is invoked when user selects Launch.
     """
 
-    def __init__(self, screen_size: tuple[int, int],
-                 on_launch: Callable[[Game], None]):
+    def __init__(self, screen_size: tuple[int, int], on_launch: Callable[[Game], None]):
         self._screen_w, self._screen_h = screen_size
         self._on_launch = on_launch
-        self._game:      Optional[Game]    = None
-        self._art_surf:  Optional[pygame.Surface] = None
-        self._open       = False
-        self._alpha_tw   = Tween(0.0, 255.0, 0.18)
-        self._alpha      = 0.0
-        self._action_idx = 0   # 0=Launch, 1=Hide/Unhide
+        self._game: Optional[Game] = None
+        self._art_surf: Optional[pygame.Surface] = None
+        self._open = False
+        self._alpha_tw = Tween(0.0, 255.0, 0.18)
+        self._alpha = 0.0
+        self._action_idx = 0  # 0=Launch, 1=Hide/Unhide
 
         self._init_fonts()
 
     def _init_fonts(self):
         try:
-            self._title_font  = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 32, bold=True)
-            self._meta_font   = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 18)
+            self._title_font = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", 32, bold=True
+            )
+            self._meta_font = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", 18
+            )
             self._action_font = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 20, bold=True)
-            self._hint_font   = pygame.font.SysFont(
-                "Inter,DejaVuSans,Liberation Sans,sans", 15)
+                "Inter,DejaVuSans,Liberation Sans,sans", 20, bold=True
+            )
+            self._hint_font = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", 15
+            )
         except Exception:
-            self._title_font  = pygame.font.Font(None, 38)
-            self._meta_font   = pygame.font.Font(None, 22)
+            self._title_font = pygame.font.Font(None, 38)
+            self._meta_font = pygame.font.Font(None, 22)
             self._action_font = pygame.font.Font(None, 24)
-            self._hint_font   = pygame.font.Font(None, 18)
+            self._hint_font = pygame.font.Font(None, 18)
 
     def resize(self, w: int, h: int):
         self._screen_w, self._screen_h = w, h
@@ -81,9 +84,9 @@ class DetailsOverlay:
     # -----------------------------------------------------------------------
 
     def open(self, game: Game):
-        self._game       = game
-        self._open       = True
-        self._art_surf   = None
+        self._game = game
+        self._open = True
+        self._art_surf = None
         self._action_idx = 0
         self._alpha_tw.reset(0.0, 255.0, 0.18)
 
@@ -114,7 +117,7 @@ class DetailsOverlay:
             fn()
             if label in ("Next Cover Art", "Add Custom Art"):
                 return False
-        return True   # always close after action
+        return True  # always close after action
 
     def _num_actions(self) -> int:
         return len(self._build_actions())
@@ -125,8 +128,10 @@ class DetailsOverlay:
         is_hid = hidden_store.is_hidden(self._game.slug)
         actions = [
             ("Launch game", lambda: self._on_launch(self._game)),
-            ("Unhide game" if is_hid else "Hide game",
-             lambda: hidden_store.toggle(self._game.slug)),
+            (
+                "Unhide game" if is_hid else "Hide game",
+                lambda: hidden_store.toggle(self._game.slug),
+            ),
             ("Next Cover Art", self._trigger_swap_art),
             ("Add Custom Art", self._trigger_select_custom_art),
         ]
@@ -134,9 +139,11 @@ class DetailsOverlay:
 
     def _trigger_swap_art(self):
         import threading
+
         def worker():
             if art_module.swap_to_next_art(self._game):
                 self._art_surf = None  # Force reload
+
         threading.Thread(target=worker, daemon=True).start()
 
     def _trigger_select_custom_art(self):
@@ -149,20 +156,27 @@ class DetailsOverlay:
             try:
                 # Open zenity file selection dialog
                 res = subprocess.run(
-                    ["zenity", "--file-selection", "--title=Select Custom Art",
-                     "--file-filter=Images (png, jpg, jpeg, webp) | *.png *.jpg *.jpeg *.webp"],
-                    capture_output=True, text=True
+                    [
+                        "zenity",
+                        "--file-selection",
+                        "--title=Select Custom Art",
+                        "--file-filter=Images (png, jpg, jpeg, webp) | *.png *.jpg *.jpeg *.webp",
+                    ],
+                    capture_output=True,
+                    text=True,
                 )
                 if res.returncode == 0:
                     src_path = Path(res.stdout.strip())
                     if src_path.exists():
                         dest_dir = config.CONFIG_DIR / "custom_art"
                         dest_dir.mkdir(parents=True, exist_ok=True)
-                        dest_path = dest_dir / f"{self._game.slug}{src_path.suffix.lower()}"
-                        
+                        dest_path = (
+                            dest_dir / f"{self._game.slug}{src_path.suffix.lower()}"
+                        )
+
                         # Copy the file
                         shutil.copy2(src_path, dest_path)
-                        
+
                         # Invalidate cache
                         art_module.invalidate(self._game.slug)
                         self._art_surf = None  # Force reload details image
@@ -190,7 +204,7 @@ class DetailsOverlay:
             return
 
         sw, sh = self._screen_w, self._screen_h
-        alpha  = int(self._alpha)
+        alpha = int(self._alpha)
 
         # ── Dark veil ───────────────────────────────────────────────────────
         veil = pygame.Surface((sw, sh), pygame.SRCALPHA)
@@ -199,13 +213,13 @@ class DetailsOverlay:
 
         # ── Card panel ──────────────────────────────────────────────────────
         pw, ph = min(720, sw - 80), min(600, sh - 80)
-        
+
         # Calculate horizontal slide-in transition offset
         progress = alpha / 255.0  # 0.0 -> 1.0
-        slide_offset = int((1.0 - progress) * 60) # slide in by 60px
-        
-        px     = (sw - pw) // 2 + slide_offset
-        py     = (sh - ph) // 2
+        slide_offset = int((1.0 - progress) * 60)  # slide in by 60px
+
+        px = (sw - pw) // 2 + slide_offset
+        py = (sh - ph) // 2
 
         panel = pygame.Surface((pw, ph), pygame.SRCALPHA)
         panel.fill((*config.BG_PANEL, min(alpha, 245)))
@@ -215,15 +229,16 @@ class DetailsOverlay:
 
         # ── Art (left column) ───────────────────────────────────────────────
         art_col_w = pw // 3
-        art_w     = art_col_w - 20
-        art_h     = int(art_w * 900 / 600)
-        art_y     = (ph - art_h) // 2
+        art_w = art_col_w - 20
+        art_h = int(art_w * 900 / 600)
+        art_y = (ph - art_h) // 2
 
         if self._art_surf:
             a = pygame.transform.smoothscale(self._art_surf, (art_w, art_h))
             panel.blit(a, (10, art_y))
-            pygame.draw.rect(panel, config.BORDER_BG,
-                             pygame.Rect(10, art_y, art_w, art_h), 1)
+            pygame.draw.rect(
+                panel, config.BORDER_BG, pygame.Rect(10, art_y, art_w, art_h), 1
+            )
 
         # ── Info + actions (right column) ────────────────────────────────────
         rx = art_col_w + 10
@@ -233,8 +248,8 @@ class DetailsOverlay:
         # Platform badge
         plat = self._game.display_platform_label().upper()
         badge_c = {
-            Platform.STEAM:     config.BADGE_STEAM,
-            Platform.LUTRIS:    config.BADGE_LUTRIS,
+            Platform.STEAM: config.BADGE_STEAM,
+            Platform.LUTRIS: config.BADGE_LUTRIS,
             Platform.BATTLENET: config.BADGE_BN,
         }.get(self._game.platform, config.GREY)
         bs = self._meta_font.render(plat, True, config.BG_DEEP)
@@ -280,8 +295,8 @@ class DetailsOverlay:
         action_icon_map = ["cross", "square", "triangle", "options"]
 
         for i, (label, _) in enumerate(actions):
-            selected = (i == self._action_idx)
-            row_h    = self._action_font.get_height() + 10
+            selected = i == self._action_idx
+            row_h = self._action_font.get_height() + 10
             row_rect = pygame.Rect(rx - 4, ry - 4, rw + 8, row_h + 8)
 
             if selected:
@@ -291,18 +306,24 @@ class DetailsOverlay:
                 pygame.draw.rect(panel, config.BORDER_BG, row_rect, 1)
 
             icon_name = action_icon_map[i] if i < len(action_icon_map) else "cross"
-            icons.draw_hint(panel, rx + 2, ry + 2,
-                            icon_name, label,
-                            self._action_font,
-                            icon_size=22,
-                            colour=config.WHITE if selected else config.GREY,
-                            gap=8)
+            icons.draw_hint(
+                panel,
+                rx + 2,
+                ry + 2,
+                icon_name,
+                label,
+                self._action_font,
+                icon_size=22,
+                colour=config.WHITE if selected else config.GREY,
+                gap=8,
+            )
             ry += row_h + 8
 
         # ── Bottom hint bar ──────────────────────────────────────────────────
         hint_y = ph - self._hint_font.get_height() - 14
-        pygame.draw.line(panel, config.BORDER_BG, (rx, hint_y - 8),
-                         (pw - 10, hint_y - 8), 1)
+        pygame.draw.line(
+            panel, config.BORDER_BG, (rx, hint_y - 8), (pw - 10, hint_y - 8), 1
+        )
 
         cx = rx
         for icon_name, label in [("dpad", "Navigate"), ("circle", "Close")]:

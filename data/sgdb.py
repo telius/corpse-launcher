@@ -8,7 +8,6 @@ API docs: https://www.steamgriddb.com/api/v2
 
 from __future__ import annotations
 import hashlib
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +22,7 @@ _TIMEOUT = 10
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _headers() -> dict:
     key = config.sgdb_api_key()
     if not key:
@@ -36,8 +36,9 @@ def _headers() -> dict:
 
 def _get(endpoint: str, params: dict = {}) -> Optional[dict]:
     try:
-        r = requests.get(f"{_BASE}/{endpoint}", headers=_headers(),
-                         params=params, timeout=_TIMEOUT)
+        r = requests.get(
+            f"{_BASE}/{endpoint}", headers=_headers(), params=params, timeout=_TIMEOUT
+        )
         if r.status_code == 200:
             return r.json()
         elif r.status_code == 401:
@@ -77,6 +78,7 @@ def _download(url: str, dest: Path) -> bool:
 # Search / lookup
 # ---------------------------------------------------------------------------
 
+
 def _get_game_id_by_steam_appid(appid: str) -> Optional[int]:
     """Get SGDB game id from a Steam appid."""
     data = _get(f"games/steam/{appid}")
@@ -101,7 +103,7 @@ def _fetch_grid_url(sgdb_id: int, style: str, dimensions: str) -> Optional[str]:
     for styles in ([style], []):  # exact style first, then any
         params: dict = {
             "dimensions": dimensions,
-            "mimes":      "image/png,image/jpeg,image/webp",
+            "mimes": "image/png,image/jpeg,image/webp",
         }
         if styles:
             params["styles"] = styles[0]
@@ -125,9 +127,10 @@ def _fetch_grid_url(sgdb_id: int, style: str, dimensions: str) -> Optional[str]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def fetch_art(game_slug: str,
-              steam_appid: Optional[str] = None,
-              game_name: str = "") -> Optional[Path]:
+
+def fetch_art(
+    game_slug: str, steam_appid: Optional[str] = None, game_name: str = ""
+) -> Optional[Path]:
     """
     Fetch portrait grid art for a game.
     Returns path to locally cached file, or None if unavailable.
@@ -139,7 +142,7 @@ def fetch_art(game_slug: str,
       4. Download best matching 600×900 white_logo (or fallback style) grid
     """
     if not config.sgdb_api_key():
-        return None   # silently skip if no key configured
+        return None  # silently skip if no key configured
 
     dest = _cache_path(game_slug)
     if dest.exists() and dest.stat().st_size > 0:
@@ -158,8 +161,8 @@ def fetch_art(game_slug: str,
     if sgdb_id is None:
         return None
 
-    style      = config.get("art", "sgdb_style")        # "white_logo"
-    dimensions = config.get("art", "sgdb_dimensions")   # "600x900"
+    style = config.get("art", "sgdb_style")  # "white_logo"
+    dimensions = config.get("art", "sgdb_dimensions")  # "600x900"
 
     url = _fetch_grid_url(sgdb_id, style, dimensions)
     if url is None:
@@ -190,7 +193,7 @@ def fetch_all_grid_urls(sgdb_id: int, style: str, dimensions: str) -> list[str]:
     """Fetch all matching grid URLs from SGDB for a given game ID and style/dimensions."""
     params: dict = {
         "dimensions": dimensions,
-        "mimes":      "image/png,image/jpeg,image/webp",
+        "mimes": "image/png,image/jpeg,image/webp",
     }
     if style:
         params["styles"] = style
