@@ -32,24 +32,35 @@ class _LRUCache:
     def __init__(self, maxsize: int = 300):
         self._store: OrderedDict[str, pygame.Surface] = OrderedDict()
         self._max = maxsize
+        self._lock = threading.Lock()
 
     def get(self, key: str) -> Optional[pygame.Surface]:
-        if key in self._store:
-            self._store.move_to_end(key)
-            return self._store[key]
-        return None
+        with self._lock:
+            if key in self._store:
+                self._store.move_to_end(key)
+                return self._store[key]
+            return None
 
     def put(self, key: str, surf: pygame.Surface):
-        self._store[key] = surf
-        self._store.move_to_end(key)
-        if len(self._store) > self._max:
-            self._store.popitem(last=False)
+        with self._lock:
+            self._store[key] = surf
+            self._store.move_to_end(key)
+            if len(self._store) > self._max:
+                self._store.popitem(last=False)
 
     def discard(self, key: str):
-        self._store.pop(key, None)
+        with self._lock:
+            self._store.pop(key, None)
+
+    def discard_prefix(self, prefix: str):
+        with self._lock:
+            for k in list(self._store.keys()):
+                if k.startswith(prefix):
+                    self._store.pop(k, None)
 
     def clear(self):
-        self._store.clear()
+        with self._lock:
+            self._store.clear()
 
 
 # Cache key encodes slug + size so resize produces fresh surfaces
@@ -170,9 +181,7 @@ def _fetch_in_background(game: Game):
 
     if path and path.exists():
         # Invalidate any placeholder/stale surfaces for this slug
-        for k in list(_surface_cache._store.keys()):
-            if k.startswith(f"{slug}:"):
-                _surface_cache.discard(k)
+        _surface_cache.discard_prefix(f"{slug}:")
         game.art_path = path
         game.art_loaded = True
 
@@ -250,9 +259,7 @@ def clear_all():
 
 def invalidate(slug: str):
     """Remove all cached surfaces for a slug."""
-    for k in list(_surface_cache._store.keys()):
-        if k.startswith(f"{slug}:"):
-            _surface_cache.discard(k)
+    _surface_cache.discard_prefix(f"{slug}:")
 
 
 def swap_to_next_art(game: Game) -> bool:

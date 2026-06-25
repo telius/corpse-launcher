@@ -233,8 +233,9 @@ class DetailsOverlay:
         art_h = int(art_w * 900 / 600)
         art_y = (ph - art_h) // 2
 
-        if self._art_surf:
-            a = pygame.transform.smoothscale(self._art_surf, (art_w, art_h))
+        art_surf = self._art_surf
+        if art_surf:
+            a = pygame.transform.smoothscale(art_surf, (art_w, art_h))
             panel.blit(a, (10, art_y))
             pygame.draw.rect(
                 panel, config.BORDER_BG, pygame.Rect(10, art_y, art_w, art_h), 1
