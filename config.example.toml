@@ -1,0 +1,31 @@
+# corpse-launcher configuration
+# Place at: ~/.config/corpse-launcher/config.toml
+
+[general]
+# Starting window size (resizable)
+window_width  = 1280
+window_height = 720
+fps           = 60
+show_playtime = true
+# Sort: "name" | "playtime" | "last_played"
+sort_by = "name"
+
+[art]
+# Get your free API key at: https://www.steamgriddb.com/profile/preferences/api
+sgdb_api_key    = ""
+
+# Grid art style: "white_logo" | "alternate" | "material" | "no_logo" | ""
+sgdb_style      = "white_logo"
+
+# Art dimensions (portrait 600x900 recommended)
+sgdb_dimensions = "600x900"
+
+# Display card width in pixels (height auto-calculated to maintain 600x900 ratio)
+card_width = 190
+
+[ui]
+grid_cols        = 4
+grid_gap         = 12
+sidebar_width    = 300
+card_border_width = 2
+animation_speed  = 12.0   # higher = snappier scroll/selection

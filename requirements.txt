@@ -1,0 +1,5 @@
+pygame>=2.6.0
+vdf>=3.4
+PyYAML>=6.0
+requests>=2.31.0
+toml>=0.10.2

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Corpse Launcher
+Comment=Lightweight Linux game launcher with PS5 controller support
+Exec=/home/james/projects/corpse-launcher/run.sh
+Icon=input-gaming
+Terminal=false
+Type=Application
+Categories=Game;
+Keywords=games;launcher;steam;lutris;gamepad;controller;
+StartupNotify=true
+StartupWMClass=corpse-launcher
