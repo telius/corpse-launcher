@@ -165,11 +165,12 @@ class Sidebar:
             y += ys.get_height() + 4
 
         # ── Playtime ─────────────────────────────────────────────────────────
-        pt = self._game.playtime_str()
-        if pt:
-            pts = self._meta_font.render(f"Playtime: {pt}", True, config.CYAN)
-            panel.blit(pts, (10, y))
-            y += pts.get_height() + 4
+        if self._game.platform != Platform.LUTRIS:
+            pt = self._game.playtime_str()
+            if pt:
+                pts = self._meta_font.render(f"Playtime: {pt}", True, config.CYAN)
+                panel.blit(pts, (10, y))
+                y += pts.get_height() + 4
 
         # ── F1 hint ──────────────────────────────────────────────────────────
         f1_label = self._hint_font.render("F1  Keybinds", True, config.GREY)

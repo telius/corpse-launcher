@@ -5,8 +5,12 @@
 ## Features
 - **Portrait 600×900 grid** — SteamGridDB `white_logo` style art
 - **PS5 DualSense navigation** — D-pad, left stick, ✕ to launch, ○ back, L1/R1 page
+- **Select on Hover** — High-performance \(O(1)\) mouse-over selection
 - **Auto-imports** Steam and Lutris (deduplicated)
 - **Smart launch routing** — Steam+Lutris overlap → launch via Lutris
+- **Hiding Games** — Toggle visibility of any item with a dedicated action, plus a global hidden items toggle
+- **OLED Protection** — Orbital pixel shift (sinusoidal offset to avoid burn-in) with an F1 menu toggle
+- **Inactivity Autodimmer** — Fades out display when inactive for 30 seconds, dropping loop to 5 FPS for minimum CPU usage
 - **Resizable window** — 4-column grid, animated sidebar panel
 - **~50 MB RAM** footprint
 
@@ -43,19 +47,29 @@ Art downloads automatically on first view and is cached at `~/.cache/corpse-laun
 | ✕ (Cross)     | Launch game       |
 | ○ (Circle)    | Back / Quit       |
 | △ (Triangle)  | Game details      |
+| □ (Square)    | Hide / unhide game|
 | L1            | Page left         |
 | R1            | Page right        |
-| Select        | Refresh library   |
+| Select        | Toggle hidden list|
+| Options       | Refresh library   |
 
 ## Keyboard Fallback
 
-`↑↓←→` or `WASD` to navigate, `Enter`/`Space` to launch, `Esc` to quit, `F5` to refresh.
+- `↑↓←→` or `WASD`: Navigate grid
+- `Enter` / `Space`: Launch selected game
+- `Esc` / `Backspace`: Back / Close overlay
+- `I`: Open details overlay
+- `H`: Hide / unhide selected game
+- `Tab`: Toggle showing hidden games
+- `F1`: Open keybinds / settings overlay
+- `P` (in F1 menu): Toggle Pixel Shift
+- `F5` / `R`: Refresh library
 
 ## File Structure
 
 ```
 corpse-launcher/
-├── main.py              # Entry point + game loop
+├── corpse-launcher.py   # Entry point + game loop
 ├── config.py            # Colors, paths, config loader
 ├── launcher.py          # Subprocess launch (Steam / Lutris)
 ├── controller/
@@ -71,7 +85,8 @@ corpse-launcher/
 └── ui/
     ├── grid.py          # Scrollable portrait grid
     ├── sidebar.py       # Selected game detail panel
-    ├── topbar.py        # Title bar + status
+    ├── keybinds.py      # Help & settings overlay (F1)
+    ├── details.py       # Extended details overlay (I)
     └── animations.py    # Easing, lerp, Tween, Pulse
 ```
 
@@ -80,3 +95,4 @@ corpse-launcher/
 Art is cached at `~/.cache/corpse-launcher/art/`. Delete files there to force re-download.
 
 Steam's own cached art is used first (no API call needed for installed Steam games).
+

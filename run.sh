@@ -10,4 +10,4 @@ elif [ -n "$DISPLAY" ]; then
     export SDL_VIDEODRIVER=x11
 fi
 
-exec python3 main.py "$@"
+exec python3 corpse-launcher.py "$@"

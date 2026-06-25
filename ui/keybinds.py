@@ -49,11 +49,13 @@ _KEYBINDS = [
 
 
 class KeybindsOverlay:
-    """Full-screen translucent overlay listing all keybinds."""
+    """Full-screen translucent overlay listing all keybinds + settings toggles."""
 
     def __init__(self, screen_size: tuple[int, int]):
         self._sw, self._sh = screen_size
         self._open = False
+        # OLED pixel-shift toggle — persisted for the session
+        self._pixel_shift_enabled = True
         self._init_fonts()
 
     def _init_fonts(self):
@@ -93,6 +95,13 @@ class KeybindsOverlay:
     @property
     def is_open(self) -> bool:
         return self._open
+
+    @property
+    def pixel_shift_enabled(self) -> bool:
+        return self._pixel_shift_enabled
+
+    def toggle_pixel_shift(self) -> None:
+        self._pixel_shift_enabled = not self._pixel_shift_enabled
 
     def draw(self, surface: pygame.Surface):
         if not self._open:
@@ -186,8 +195,47 @@ class KeybindsOverlay:
             cx += col_w
 
         # Bottom hint
-        hint = self._hint_font.render("Press F1 or Esc to close", True, config.GREY)
+        hint = self._hint_font.render(
+            "Press F1 or Esc to close", True, config.GREY
+        )
         panel.blit(hint, (pw // 2 - hint.get_width() // 2, ph - hint.get_height() - 12))
+
+        # ── Settings strip ────────────────────────────────────────────────
+        strip_h = self._key_font.get_height() + 14
+        strip_y = ph - strip_h - self._hint_font.get_height() - 22
+        pygame.draw.line(panel, config.BORDER_BG, (20, strip_y - 8), (pw - 20, strip_y - 8), 1)
+
+        # Section label
+        settings_label = self._heading_font.render("Settings", True, config.VIOLET)
+        panel.blit(settings_label, (20, strip_y))
+
+        # Pixel shift toggle pill
+        pill_x = 20 + settings_label.get_width() + 24
+        pill_y = strip_y
+        enabled = self._pixel_shift_enabled
+        pill_color = config.CYAN if enabled else config.GREY
+        status_text = "ON" if enabled else "OFF"
+        key_text = "[P]"
+        label_text = f"Pixel Shift: {status_text}"
+
+        key_s = self._key_font.render(key_text, True, config.CYAN)
+        label_s = self._key_font.render(label_text, True, pill_color)
+        desc_s = self._desc_font.render("OLED burn-in protection", True, config.GREY)
+
+        # Highlight pill background
+        pill_w = key_s.get_width() + label_s.get_width() + desc_s.get_width() + 36
+        pill_rect = pygame.Rect(pill_x - 6, pill_y - 3, pill_w, strip_h)
+        pill_bg = pygame.Surface(pill_rect.size, pygame.SRCALPHA)
+        pill_bg.fill((*config.VIOLET, 30) if enabled else (30, 30, 30, 80))
+        panel.blit(pill_bg, pill_rect.topleft)
+        pygame.draw.rect(panel, pill_color, pill_rect, 1)
+
+        tx = pill_x
+        panel.blit(key_s, (tx, pill_y + 4))
+        tx += key_s.get_width() + 8
+        panel.blit(label_s, (tx, pill_y + 4))
+        tx += label_s.get_width() + 12
+        panel.blit(desc_s, (tx, pill_y + 4))
 
         # Border
         pygame.draw.rect(panel, config.BORDER_BG, panel.get_rect(), 2)

@@ -3,11 +3,13 @@
 corpse-launcher — main entry point.
 
 Usage:
-  python main.py
-  python main.py --dry-run
+  python corpse-launcher.py
+  python corpse-launcher.py --dry-run
+
 """
 
 from __future__ import annotations
+import math
 import os
 import sys
 import time
@@ -40,6 +42,33 @@ from ui.keybinds import KeybindsOverlay
 
 def _sidebar_w(win_w: int) -> int:
     return max(220, min(380, int(win_w * 0.22)))
+
+
+# Fonts are initialised lazily after pygame.init() but cached for the process lifetime
+_font_loading: pygame.font.Font | None = None
+_font_status: pygame.font.Font | None = None
+
+
+def _get_font_loading() -> pygame.font.Font:
+    global _font_loading
+    if _font_loading is None:
+        try:
+            _font_loading = pygame.font.SysFont(
+                "Inter,DejaVuSans,Liberation Sans,sans", 24, bold=True
+            )
+        except Exception:
+            _font_loading = pygame.font.Font(None, 30)
+    return _font_loading
+
+
+def _get_font_status() -> pygame.font.Font:
+    global _font_status
+    if _font_status is None:
+        try:
+            _font_status = pygame.font.SysFont("Inter,DejaVuSans,Liberation Sans,sans", 14)
+        except Exception:
+            _font_status = pygame.font.Font(None, 18)
+    return _font_status
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +124,7 @@ class App:
 
         w, h = config.window_size()
         self.screen = pygame.display.set_mode(
-            (w, h), pygame.RESIZABLE | pygame.DOUBLEBUF
+            (w, h), pygame.RESIZABLE | pygame.DOUBLEBUF, vsync=1
         )
         self.clock = pygame.time.Clock()
         self.running = True
@@ -117,6 +146,14 @@ class App:
         )
         self.keybinds = KeybindsOverlay(screen_size=(w, h))
         self.input = InputHandler()
+
+        # OLED protection variables
+        self._idle_time = 0.0
+        self._active_mouse_pos = pygame.mouse.get_pos()
+        self._shift_x = 0
+        self._shift_y = 0
+        self._render_surf = None
+        self._dim_overlay: pygame.Surface | None = None
 
         threading.Thread(target=self._load_library, daemon=True).start()
 
@@ -187,6 +224,8 @@ class App:
         if self.keybinds.is_open:
             if action in (Action.HELP, Action.BACK, Action.QUIT):
                 self.keybinds.close()
+            elif action == Action.TOGGLE_PIXELSHIFT:
+                self.keybinds.toggle_pixel_shift()
             return
 
         # ── HELP toggles keybinds overlay from anywhere ───────────────────
@@ -349,6 +388,15 @@ class App:
                         self.grid.dirty = True
                         self.sidebar.set_game(self.grid.selected_game)
 
+            case Action.MOUSE_HOVER:
+                # Direct O(1) hover selection change
+                mx, my = self.input.mouse_pos
+                idx = self.grid.hover_at(mx, my)
+                if idx is not None and idx != self.grid.selected:
+                    self.grid.selected = idx
+                    self.grid.dirty = True
+                    self.sidebar.set_game(self.grid.selected_game)
+
             case Action.MOUSE_DBLCLICK:
                 mx, my = self.input.mouse_pos
                 idx = self.grid.click_at(mx, my)
@@ -376,78 +424,130 @@ class App:
 
     def run(self):
         self.IDLE_FPS = 5  # Lower idle throttle to 5 FPS to reduce CPU usage
-        while self.running:
-            # Determine FPS — throttle to IDLE_FPS when nothing is animating
-            sidebar_anim = self.sidebar._alpha_tw and not self.sidebar._alpha_tw.done
-            details_anim = (
-                self.details.is_open
-                and self.details._alpha_tw
-                and not self.details._alpha_tw.done
-            )
-            grid_scroll_anim = abs(self.grid._scroll_y - self.grid._target_y) > 0.5
+        fps = self.TARGET_FPS
 
-            animating = (
-                self._needs_draw
-                or self._loading
-                or self.details.is_open
-                or self.keybinds.is_open
-                or sidebar_anim
-                or details_anim
-                or grid_scroll_anim
-            )
-            fps = self.TARGET_FPS if animating else self.IDLE_FPS
+        while self.running:
+            # 1. Frame timing
             dt = min(self.clock.tick(fps) / 1000.0, 0.05)
 
-            # Resize detection
-            cur = self.screen.get_size()
+            # 2. Resize detection
+            cur = pygame.display.get_surface().get_size()
             if cur != self._win_size:
+                self.screen = pygame.display.get_surface()
                 self._win_size = cur
                 self._layout()
 
-            # Pending library load
+            # 3. Pending library load
             if getattr(self, "_pending_refresh", False):
                 del self._pending_refresh
                 self._refresh_grid()
 
-            # Input
+            # 4. Input Polling
             actions = []
             try:
                 actions = self.input.poll(dt)
             except Exception as e:
                 print(f"[input] Poll warning (ignoring during transition): {e}")
+
+            # 5. Inactivity Autodimmer timer update
+            # Reset idle dimmer timer on activity
+            mouse_pos = pygame.mouse.get_pos()
+            dx = mouse_pos[0] - self._active_mouse_pos[0]
+            dy = mouse_pos[1] - self._active_mouse_pos[1]
+            mouse_moved = (dx * dx + dy * dy) > 64  # threshold of 8 pixels (8^2 = 64)
+            
+            was_dimmed = self._idle_time > 30.0
+            if actions or mouse_moved:
+                self._idle_time = 0.0
+                self._active_mouse_pos = mouse_pos
+                if was_dimmed:
+                    self._needs_draw = True  # immediately paint full brightness on wake
+            else:
+                self._idle_time += dt
+
+            # Compute dimmer status (fading triggers drawing updates)
+            dim_fade_active = 30.0 < self._idle_time < 32.0
+            is_dimmed = self._idle_time > 30.0
+
+            # 6. OLED Orbit / Pixel Shift calculation
+            t = pygame.time.get_ticks() / 1000.0  # seconds
+            theta = (t / 180.0) * 2 * math.pi  # 180s orbit period, 2px radius
+            new_shift_x = int(math.cos(theta) * 2)
+            new_shift_y = int(math.sin(theta) * 2)
+            if new_shift_x != self._shift_x or new_shift_y != self._shift_y:
+                self._shift_x = new_shift_x
+                self._shift_y = new_shift_y
+                self._needs_draw = True
+
+            # 7. Action processing
             for action in actions:
                 self._handle_action(action)
 
-            # Update
+            # 8. Component updates
             grid_dirty = self.grid.update(dt)
             self.sidebar.update(dt)
             self.details.update(dt)
 
-            # Draw only when needed
-            sidebar_fading = self.sidebar._alpha_tw and not self.sidebar._alpha_tw.done
-            details_fading = (
+            # 9. Frame rate + draw-need determination
+            anim_sidebar = bool(self.sidebar._alpha_tw and not self.sidebar._alpha_tw.done)
+            anim_details = bool(
                 self.details.is_open
                 and self.details._alpha_tw
                 and not self.details._alpha_tw.done
             )
-            if self._needs_draw or grid_dirty or sidebar_fading or details_fading:
-                self.screen.fill(config.BG)
-                self.grid.draw(self.screen)
-                self.sidebar.draw(self.screen, show_hidden=self._show_hidden)
-                self.details.draw(self.screen)
-                self.keybinds.draw(self.screen)
+            anim_scroll = abs(self.grid._scroll_y - self.grid._target_y) > 0.5
+
+            needs_render = (
+                self._needs_draw
+                or grid_dirty
+                or anim_sidebar
+                or anim_details
+                or anim_scroll
+                or self._loading
+                or self.details.is_open
+                or self.keybinds.is_open
+                or dim_fade_active
+            )
+            fps = self.TARGET_FPS if needs_render else self.IDLE_FPS
+
+
+            # 10. Draw
+            if needs_render:
+                # Ensure the offscreen render surface matches window size
+                if (
+                    self._render_surf is None
+                    or self._render_surf.get_size() != self.screen.get_size()
+                ):
+                    self._render_surf = pygame.Surface(self.screen.get_size())
+
+                self._render_surf.fill(config.BG)
+                self.grid.draw(self._render_surf)
+                self.sidebar.draw(self._render_surf, show_hidden=self._show_hidden)
+                self.details.draw(self._render_surf)
+                self.keybinds.draw(self._render_surf)
 
                 if self._loading:
-                    _draw_loading(self.screen, self._status)
+                    _draw_loading(self._render_surf, self._status)
                 elif self._status:
-                    _draw_status(self.screen, self._status)
+                    _draw_status(self._render_surf, self._status)
 
-                # Optimised updates: use dirty rect updates for grid and sidebar if no fullscreen overlays are active
-                if self.details.is_open or self.keybinds.is_open or self._loading:
-                    pygame.display.flip()
+                # Draw inactivity dimmer overlay (reuse cached surface)
+                if is_dimmed:
+                    dim_alpha = max(0, min(180, int((self._idle_time - 30.0) * 90)))
+                    sz = self._render_surf.get_size()
+                    if self._dim_overlay is None or self._dim_overlay.get_size() != sz:
+                        self._dim_overlay = pygame.Surface(sz, pygame.SRCALPHA)
+                    self._dim_overlay.fill((0, 0, 0, dim_alpha))
+                    self._render_surf.blit(self._dim_overlay, (0, 0))
+
+                # Blit the virtual surface onto the hardware screen with pixel shift
+                self.screen.fill((0, 0, 0))
+                if self.keybinds.pixel_shift_enabled:
+                    self.screen.blit(self._render_surf, (self._shift_x, self._shift_y))
                 else:
-                    # Update only grid and sidebar regions
-                    pygame.display.update([self.grid.rect, self.sidebar.rect])
+                    self.screen.blit(self._render_surf, (0, 0))
+
+                pygame.display.flip()
                 self._needs_draw = False
 
         pygame.quit()
@@ -463,12 +563,7 @@ def _draw_loading(surface: pygame.Surface, msg: str = "Loading..."):
     veil = pygame.Surface((w, h), pygame.SRCALPHA)
     veil.fill((0, 0, 0, 160))
     surface.blit(veil, (0, 0))
-    try:
-        font = pygame.font.SysFont(
-            "Inter,DejaVuSans,Liberation Sans,sans", 24, bold=True
-        )
-    except Exception:
-        font = pygame.font.Font(None, 30)
+    font = _get_font_loading()
     dots = "." * (int(time.time() * 2) % 4)
     txt = font.render(f"{msg}{dots}", True, config.CYAN)
     surface.blit(txt, (w // 2 - txt.get_width() // 2, h // 2 - txt.get_height() // 2))
@@ -476,10 +571,7 @@ def _draw_loading(surface: pygame.Surface, msg: str = "Loading..."):
 
 def _draw_status(surface: pygame.Surface, msg: str):
     """Small status pill at bottom-left."""
-    try:
-        font = pygame.font.SysFont("Inter,DejaVuSans,Liberation Sans,sans", 14)
-    except Exception:
-        font = pygame.font.Font(None, 18)
+    font = _get_font_status()
     txt = font.render(msg, True, config.CYAN)
     pad = 8
     w = txt.get_width() + pad * 2

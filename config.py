@@ -31,7 +31,7 @@ _DEFAULTS: dict = {
     "general": {
         "window_width": 1280,
         "window_height": 720,
-        "fps": 60,
+        "fps": 144,
         "show_playtime": True,
         "sort_by": "name",  # "name" | "playtime" | "last_played"
     },
@@ -44,7 +44,7 @@ _DEFAULTS: dict = {
     },
     "ui": {
         "grid_cols": 4,
-        "grid_gap": 12,
+        "grid_gap": 30,
         "sidebar_width": 300,
         "card_border_width": 2,
         "scroll_speed": 8,
@@ -53,23 +53,28 @@ _DEFAULTS: dict = {
 }
 
 
+def _apply_toml(cfg: dict, path) -> None:
+    """Merge a toml file into cfg in-place, ignoring parse errors."""
+    try:
+        with open(path, "rb") as f:
+            user = tomllib.load(f)
+        for section, values in user.items():
+            if section in cfg:
+                cfg[section].update(values)
+            else:
+                cfg[section] = values
+    except Exception as e:
+        print(f"[config] Warning: could not load {path}: {e}")
+
+
 def _load() -> dict:
     """Load user config, falling back to defaults for missing keys."""
-    cfg = {}
-    for section, values in _DEFAULTS.items():
-        cfg[section] = dict(values)
-
+    cfg = {section: dict(values) for section, values in _DEFAULTS.items()}
     if CONFIG_FILE.exists():
-        try:
-            with open(CONFIG_FILE, "rb") as f:
-                user = tomllib.load(f)
-            for section, values in user.items():
-                if section in cfg:
-                    cfg[section].update(values)
-                else:
-                    cfg[section] = values
-        except Exception as e:
-            print(f"[config] Warning: could not load {CONFIG_FILE}: {e}")
+        _apply_toml(cfg, CONFIG_FILE)
+    local = Path("config.toml")
+    if local.exists() and local.resolve() != CONFIG_FILE.resolve():
+        _apply_toml(cfg, local)
     return cfg
 
 
@@ -83,24 +88,17 @@ ART_CACHE.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 # Color palette — Dracula variant
 # ---------------------------------------------------------------------------
-# Near-black background with purple tint
-BG_DEEP = (0, 0, 0)  # deepest background
-BG = (0, 0, 0)  # main background
-BG_PANEL = (5, 5, 5)  # panel / sidebar
-BG_CARD = (10, 10, 10)  # unselected card bg
+BG = (0, 0, 0)           # main background
+BG_DEEP = (0, 0, 0)      # alias kept for badge text contrast
+BG_PANEL = (22, 22, 26)  # panel / sidebar
+BG_CARD = (22, 22, 26)   # card background
 
-VIOLET = (102, 0, 255)  # #6600ff — primary accent
-MAGENTA = (255, 0, 255)  # #ff00ff — secondary accent
-CYAN = (0, 255, 255)  # #00ffff — highlight / info
-WHITE = (240, 240, 255)  # near-white for text
-GREY = (100, 80, 140)  # muted text
-BORDER_BG = (0, 0, 0)  # #000000 — card border (unselected)
-BORDER_SEL = (102, 0, 255)  # violet glow when selected
-
-# Gradient-like selection: outer → inner for glow
-GLOW_OUTER = (102, 0, 255, 30)  # RGBA
-GLOW_MID = (255, 0, 255, 60)
-GLOW_INNER = (0, 255, 255, 90)
+VIOLET = (102, 0, 255)   # primary accent
+MAGENTA = (255, 0, 255)  # secondary accent
+CYAN = (0, 255, 255)     # highlight / info
+WHITE = (240, 240, 255)  # near-white text
+GREY = (100, 80, 140)    # muted text
+BORDER_BG = (0, 0, 0)    # unselected border
 
 # Platform badge colours
 BADGE_STEAM = (102, 192, 234)

@@ -4,7 +4,6 @@ No dependencies beyond Python stdlib.
 """
 
 from __future__ import annotations
-import math
 
 
 # ---------------------------------------------------------------------------
@@ -91,26 +90,4 @@ class Tween:
         self.done = False
 
 
-# ---------------------------------------------------------------------------
-# Float pulse (sin wave — for glow / breathing effects)
-# ---------------------------------------------------------------------------
 
-
-class Pulse:
-    def __init__(self, period: float = 2.0, lo: float = 0.4, hi: float = 1.0):
-        self._period = period
-        self._lo = lo
-        self._hi = hi
-        self._t = 0.0
-
-    def update(self, dt: float) -> float:
-        self._t = (self._t + dt) % self._period
-        phase = self._t / self._period * 2 * math.pi
-        norm = (math.sin(phase) + 1) / 2  # 0..1
-        return self._lo + norm * (self._hi - self._lo)
-
-    @property
-    def value(self) -> float:
-        return self._lo + ((math.sin(self._t / self._period * 2 * math.pi) + 1) / 2) * (
-            self._hi - self._lo
-        )

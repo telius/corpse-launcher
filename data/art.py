@@ -11,6 +11,7 @@ Key design:
 """
 
 from __future__ import annotations
+import json
 import threading
 from pathlib import Path
 from typing import Optional
@@ -69,6 +70,15 @@ def _cache_key(slug: str, w: int, h: int) -> str:
 
 
 _surface_cache = _LRUCache(maxsize=400)
+
+# Small placeholder cache — keyed by (slug, w, h) so placeholders aren't re-rendered
+# every frame while real art is being fetched. NOT the same as _surface_cache
+# (placeholder is evicted as soon as real art arrives via discard_prefix).
+_placeholder_cache: dict[str, pygame.Surface] = {}
+
+# Custom art directory — created once at module load, not inside get_surface
+_custom_art_dir = config.CONFIG_DIR / "custom_art"
+_custom_art_dir.mkdir(parents=True, exist_ok=True)
 
 # Slugs currently being fetched from SGDB in a background thread
 _fetching: set[str] = set()
@@ -148,8 +158,9 @@ def _make_placeholder(game: Game, w: int, h: int) -> pygame.Surface:
 
 def _load_surface(path: Path, w: int, h: int) -> Optional[pygame.Surface]:
     try:
-        raw = pygame.image.load(str(path)).convert_alpha()
-        scaled = pygame.transform.smoothscale(raw, (w, h))
+        raw = pygame.image.load(str(path))
+        scaled_raw = pygame.transform.smoothscale(raw, (w, h))
+        scaled = scaled_raw.convert_alpha()
         return scaled
     except Exception as e:
         print(f"[art] Failed to load {path.name}: {e}")
@@ -204,28 +215,23 @@ def get_surface(game: Game, w: int, h: int) -> pygame.Surface:
     """
     key = _cache_key(game.slug, w, h)
 
-    # 1. Cached surface
+    # 1. Cached surface (real art)
     cached = _surface_cache.get(key)
     if cached is not None:
         return cached
 
-    # 1.5 Custom art directory override
-    custom_dir = config.CONFIG_DIR / "custom_art"
-    custom_dir.mkdir(parents=True, exist_ok=True)
-    custom_art_path = None
-    for ext in (".jpg", ".jpeg", ".png", ".webp"):
-        p = custom_dir / f"{game.slug}{ext}"
+    # 1.5 Custom art directory override (no mkdir — ensured at module load)
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        p = _custom_art_dir / f"{game.slug}{ext}"
         if p.exists():
-            custom_art_path = p
-            break
-    if custom_art_path:
-        surf = _load_surface(custom_art_path, w, h)
-        if surf:
-            _surface_cache.put(key, surf)
-            game.art_loaded = True
-            return surf
+            surf = _load_surface(p, w, h)
+            if surf:
+                _surface_cache.put(key, surf)
+                game.art_loaded = True
+                return surf
+            break  # file exists but failed to load — fall through
 
-    # 2. Known art path
+    # 2. Known art path on disk
     if game.art_path and game.art_path.exists():
         surf = _load_surface(game.art_path, w, h)
         if surf:
@@ -238,33 +244,41 @@ def get_surface(game: Game, w: int, h: int) -> pygame.Surface:
     with _fetch_lock:
         if slug not in _fetching and slug not in _sgdb_failed and sgdb.has_key():
             _fetching.add(slug)
-            t = threading.Thread(
-                target=_fetch_in_background,
-                args=(game,),
-                daemon=True,
-            )
-            t.start()
+            threading.Thread(
+                target=_fetch_in_background, args=(game,), daemon=True
+            ).start()
 
-    # 4. Return placeholder — NOT cached so real art surfaces replace it
-    return _make_placeholder(game, w, h)
+    # 4. Return cached placeholder so we don't re-render it every frame
+    pk = _cache_key(game.slug, w, h)
+    ph = _placeholder_cache.get(pk)
+    if ph is None:
+        ph = _make_placeholder(game, w, h)
+        if len(_placeholder_cache) > 200:
+            # Simple eviction: drop the oldest entry
+            _placeholder_cache.pop(next(iter(_placeholder_cache)))
+        _placeholder_cache[pk] = ph
+    return ph
 
 
 def clear_all():
     """Flush entire surface cache and fetch state (e.g. on window resize)."""
     _surface_cache.clear()
+    _placeholder_cache.clear()
     with _fetch_lock:
         _fetching.clear()
         _sgdb_failed.clear()
 
 
 def invalidate(slug: str):
-    """Remove all cached surfaces for a slug."""
+    """Remove all cached surfaces for a slug (real art + placeholder)."""
     _surface_cache.discard_prefix(f"{slug}:")
+    # Also evict placeholder so the refreshed art is picked up immediately
+    for k in [k for k in _placeholder_cache if k.startswith(slug + ":")]:
+        del _placeholder_cache[k]
 
 
 def swap_to_next_art(game: Game) -> bool:
     """Fetch next available grid from SGDB, download and overwrite local cache."""
-    import json
 
     if not sgdb.has_key():
         return False

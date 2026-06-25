@@ -278,11 +278,12 @@ class DetailsOverlay:
             panel.blit(ys, (rx, ry))
             ry += ys.get_height() + 4
 
-        pt = self._game.playtime_str()
-        if pt:
-            pts = self._meta_font.render(f"Playtime: {pt}", True, config.CYAN)
-            panel.blit(pts, (rx, ry))
-            ry += pts.get_height() + 4
+        if self._game.platform != Platform.LUTRIS:
+            pt = self._game.playtime_str()
+            if pt:
+                pts = self._meta_font.render(f"Playtime: {pt}", True, config.CYAN)
+                panel.blit(pts, (rx, ry))
+                ry += pts.get_height() + 4
 
         if hidden_store.is_hidden(self._game.slug):
             hs = self._meta_font.render("HIDDEN", True, config.MAGENTA)

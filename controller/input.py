@@ -31,6 +31,7 @@ Axis layout:
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
+import time
 import pygame
 
 # ---------------------------------------------------------------------------
@@ -53,10 +54,12 @@ class Action(Enum):
     REFRESH = auto()  # Options → reimport library
     QUIT = auto()  # keyboard ESC
     HELP = auto()  # F1 → show keybinds overlay
+    TOGGLE_PIXELSHIFT = auto()  # P → toggle OLED pixel shift (in F1 menu)
     MOUSE_CLICK = auto()  # left mouse click (carries position via event data)
     MOUSE_DBLCLICK = auto()  # double-click
     SCROLL_UP = auto()  # mouse wheel up
     SCROLL_DOWN = auto()  # mouse wheel down
+    MOUSE_HOVER = auto()  # mouse hover (position updated in mouse_pos)
 
 
 # ---------------------------------------------------------------------------
@@ -102,17 +105,13 @@ STICK_ACTION: dict[tuple[int, int], Action] = {
     (0, 1): Action.NAV_RIGHT,
 }
 
-# Keys that support held-repeat
 _REPEATABLE_KEYS = {
-    pygame.K_UP,
-    pygame.K_DOWN,
-    pygame.K_LEFT,
-    pygame.K_RIGHT,
-    pygame.K_w,
-    pygame.K_s,
-    pygame.K_a,
-    pygame.K_d,
+    pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT,
+    pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d,
 }
+
+# Module-level constant — built once, looked up O(1) on every key event
+KEY_MAP: dict[int, Action] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +123,32 @@ _REPEATABLE_KEYS = {
 class _RepeatState:
     action: Action | None = None
     timer: float = 0.0
-    phase: int = 0  # 0 = initial delay, 1 = repeating
+    phase: int = 0  # 0 = waiting for init, 1 = repeating
+
+
+def _build_key_map() -> None:
+    """Populate KEY_MAP once pygame keysyms are available."""
+    KEY_MAP.update({
+        pygame.K_UP:       Action.NAV_UP,
+        pygame.K_DOWN:     Action.NAV_DOWN,
+        pygame.K_LEFT:     Action.NAV_LEFT,
+        pygame.K_RIGHT:    Action.NAV_RIGHT,
+        pygame.K_w:        Action.NAV_UP,
+        pygame.K_s:        Action.NAV_DOWN,
+        pygame.K_a:        Action.NAV_LEFT,
+        pygame.K_d:        Action.NAV_RIGHT,
+        pygame.K_RETURN:   Action.CONFIRM,
+        pygame.K_SPACE:    Action.CONFIRM,
+        pygame.K_ESCAPE:   Action.BACK,
+        pygame.K_F5:       Action.REFRESH,
+        pygame.K_F1:       Action.HELP,
+        pygame.K_h:        Action.HIDE,
+        pygame.K_TAB:      Action.SHOW_HIDDEN,
+        pygame.K_i:        Action.DETAILS,
+        pygame.K_PAGEUP:   Action.PAGE_LEFT,
+        pygame.K_PAGEDOWN: Action.PAGE_RIGHT,
+        pygame.K_p:        Action.TOGGLE_PIXELSHIFT,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +181,8 @@ class InputHandler:
         self._dblclick_threshold: float = 0.35  # seconds
 
         self._init_controller()
+        if not KEY_MAP:
+            _build_key_map()
 
     # -----------------------------------------------------------------------
     def _init_controller(self):
@@ -217,6 +243,10 @@ class InputHandler:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 actions.append(Action.QUIT)
+            elif event.type == pygame.VIDEORESIZE:
+                pygame.display.set_mode(
+                    (event.w, event.h), pygame.RESIZABLE | pygame.DOUBLEBUF, vsync=1
+                )
 
             # Keyboard press
             elif event.type == pygame.KEYDOWN:
@@ -238,8 +268,6 @@ class InputHandler:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # left click
                     self.mouse_pos = event.pos
-                    import time
-
                     now = time.monotonic()
                     if now - self._last_click_time < self._dblclick_threshold:
                         actions.append(Action.MOUSE_DBLCLICK)
@@ -259,6 +287,7 @@ class InputHandler:
 
             elif event.type == pygame.MOUSEMOTION:
                 self.mouse_pos = event.pos
+                actions.append(Action.MOUSE_HOVER)
 
             # Controller button press
             elif event.type == pygame.JOYBUTTONDOWN:
@@ -346,28 +375,9 @@ class InputHandler:
 
     # -----------------------------------------------------------------------
     def _key_actions(self, key: int) -> list[Action]:
-        """Keyboard fallback mappings."""
-        mapping = {
-            pygame.K_UP: Action.NAV_UP,
-            pygame.K_DOWN: Action.NAV_DOWN,
-            pygame.K_LEFT: Action.NAV_LEFT,
-            pygame.K_RIGHT: Action.NAV_RIGHT,
-            pygame.K_w: Action.NAV_UP,
-            pygame.K_s: Action.NAV_DOWN,
-            pygame.K_a: Action.NAV_LEFT,
-            pygame.K_d: Action.NAV_RIGHT,
-            pygame.K_RETURN: Action.CONFIRM,
-            pygame.K_SPACE: Action.CONFIRM,
-            pygame.K_ESCAPE: Action.BACK,
-            pygame.K_F5: Action.REFRESH,
-            pygame.K_F1: Action.HELP,
-            pygame.K_h: Action.HIDE,
-            pygame.K_TAB: Action.SHOW_HIDDEN,
-            pygame.K_i: Action.DETAILS,
-            pygame.K_PAGEUP: Action.PAGE_LEFT,
-            pygame.K_PAGEDOWN: Action.PAGE_RIGHT,
-        }
-        return [mapping[key]] if key in mapping else []
+        """O(1) keyboard mapping via module-level KEY_MAP."""
+        act = KEY_MAP.get(key)
+        return [act] if act is not None else []
 
     # -----------------------------------------------------------------------
     @property

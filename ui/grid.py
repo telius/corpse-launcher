@@ -22,7 +22,10 @@ class Grid:
     TARGET_CARD_W = 190
     MIN_COLS = 2
     MAX_COLS = 8
-    GAP = 20  # increased from 12 for more breathing room
+
+    @property
+    def GAP(self) -> int:
+        return config.grid_gap()
 
     def __init__(self, games: list[Game], rect: pygame.Rect):
         self.games = games
@@ -35,6 +38,10 @@ class Grid:
         self._title_font = None
         self._last_card_w = 0  # detect card size changes to re-cache fonts
         self.dirty = True  # flag for dirty rendering
+        # Cache animation speed — avoid config dict lookup every frame
+        self._anim_speed: float = config.get("ui", "animation_speed")
+        # Empty-state font — created lazily and reused
+        self._empty_font: pygame.font.Font | None = None
 
     # -----------------------------------------------------------------------
     # Dynamic layout — all derived from self.rect live
@@ -165,24 +172,34 @@ class Grid:
         self._target_y = max(0.0, min(self._target_y, max_scroll))
         self.dirty = True
 
-    def click_at(self, mx: int, my: int) -> int | None:
-        """Return the game index at screen position (mx, my), or None."""
+    def hover_at(self, mx: int, my: int) -> int | None:
+        """Return the game index at screen position (mx, my) in O(1) time, or None."""
         if not self.rect.collidepoint(mx, my):
             return None
-        cw = self.card_w
-        ch = self.card_h
-        scroll = int(self._scroll_y)
-        for idx in range(len(self.games)):
-            local = self._card_rect(idx)
-            sx = local.x
-            sy = local.y - scroll + self.rect.y
-            if sy + ch < self.rect.y:
-                continue
-            if sy > self.rect.y + self.rect.height:
-                break
-            if pygame.Rect(sx, sy, cw, ch).collidepoint(mx, my):
-                return idx
+        
+        col_w = self.card_w + self.GAP
+        row_h = self.card_h + self.GAP
+        
+        col = (mx - self.rect.x - self._h_offset - self.GAP) // col_w
+        row = (my - self.rect.y - self._v_offset - self.GAP + int(self._scroll_y)) // row_h
+        
+        if col < 0 or col >= self.cols or row < 0:
+            return None
+            
+        idx = row * self.cols + col
+        if idx >= len(self.games):
+            return None
+            
+        # Verify mouse is actually inside the card rect boundaries (and not in the gaps)
+        card_r = self._card_rect(idx)
+        card_r.y = card_r.y - int(self._scroll_y) + self.rect.y
+        if card_r.collidepoint(mx, my):
+            return idx
         return None
+
+    def click_at(self, mx: int, my: int) -> int | None:
+        """Alias/wrapper for hover_at to maintain backwards compatibility."""
+        return self.hover_at(mx, my)
 
     def _ensure_visible(self):
         r = self._card_rect(self.selected)
@@ -215,9 +232,8 @@ class Grid:
 
     def update(self, dt: float) -> bool:
         """Update scroll animation. Returns True if grid needs redraw."""
-        speed = config.get("ui", "animation_speed")
         old_scroll = self._scroll_y
-        self._scroll_y = lerp(self._scroll_y, self._target_y, speed, dt)
+        self._scroll_y = lerp(self._scroll_y, self._target_y, self._anim_speed, dt)
         self._ensure_fonts()
         if abs(self._scroll_y - old_scroll) > 0.5:
             self.dirty = True
@@ -261,64 +277,94 @@ class Grid:
     ):
         cw, ch = self.card_w, self.card_h
 
-        # Fetch surface at current card size
-        card_surf = art.get_surface(game, cw, ch)
-
         # Scale-up selected card (1.06× for more punchy zoom)
         if selected:
             nw = int(cw * 1.06)
             nh = int(ch * 1.06)
-            card_surf = pygame.transform.smoothscale(card_surf, (nw, nh))
             draw_rect = pygame.Rect(
                 rect.x - (nw - cw) // 2,
                 rect.y - (nh - ch) // 2,
                 nw,
                 nh,
             )
+            
+            padding = max(4, nw // 24)
+            art_w = nw - padding * 2
+            art_h = nh - padding * 2
 
-            # Draw multi-layered soft bloom shadow glow
-            for i in range(8, 0, -2):
+            # Cache the scaled surface to avoid calling smoothscale every frame
+            if (
+                not hasattr(self, "_zoom_cache")
+                or self._zoom_cache is None
+                or getattr(self, "_zoom_cache_slug", None) != game.slug
+                or getattr(self, "_zoom_cache_size", None) != (art_w, art_h)
+            ):
+                self._zoom_cache_slug = game.slug
+                self._zoom_cache_size = (art_w, art_h)
+                raw_art = art.get_surface(game, cw, ch)
+                self._zoom_cache = pygame.transform.smoothscale(raw_art, (art_w, art_h))
+            card_surf = self._zoom_cache
+
+            # Pre-render/cache glow surfaces to avoid creating them every frame
+            if (
+                not hasattr(self, "_glow_surfs")
+                or self._glow_surfs is None
+                or getattr(self, "_glow_surfs_size", None) != draw_rect.size
+            ):
+                self._glow_surfs = []
+                self._glow_surfs_size = draw_rect.size
+                for i in range(8, 0, -2):
+                    g_rect = draw_rect.inflate(i, i)
+                    glow_surf = pygame.Surface(g_rect.size, pygame.SRCALPHA)
+                    alpha = int(45 * (1 - i / 10))
+                    pygame.draw.rect(
+                        glow_surf,
+                        (*config.VIOLET, alpha),
+                        glow_surf.get_rect(),
+                        border_radius=4,
+                    )
+                    self._glow_surfs.append((glow_surf, i))
+
+            for glow_surf, i in self._glow_surfs:
                 glow_rect = draw_rect.inflate(i, i)
-                glow_surf = pygame.Surface(glow_rect.size, pygame.SRCALPHA)
-                # Outer glow layers get more transparent
-                alpha = int(45 * (1 - i / 10))
-                pygame.draw.rect(
-                    glow_surf,
-                    (*config.VIOLET, alpha),
-                    glow_surf.get_rect(),
-                    border_radius=4,
-                )
                 surface.blit(glow_surf, glow_rect.topleft)
         else:
             draw_rect = rect
-            # Dim unselected further for better focus separation
-            card_surf = card_surf.copy()
-            dim = pygame.Surface(card_surf.get_size(), pygame.SRCALPHA)
-            dim.fill((0, 0, 0, 95))
-            card_surf.blit(dim, (0, 0))
+            padding = max(4, cw // 24)
+            art_w = cw - padding * 2
+            art_h = ch - padding * 2
+            card_surf = art.get_surface(game, art_w, art_h)
 
-        surface.blit(card_surf, draw_rect.topleft)
+        # Draw the card container background (very dark slate grey)
+        pygame.draw.rect(surface, config.BG_CARD, draw_rect, border_radius=6)
 
-        # Border: violet for selected, black for unselected
+        # Draw the card surface inset within the container
+        surface.blit(card_surf, (draw_rect.x + padding, draw_rect.y + padding))
+
+        # Dim unselected cards to keep focus on selected card
+        if not selected:
+            if (
+                not hasattr(self, "_dim_surf")
+                or self._dim_surf is None
+                or self._dim_surf.get_size() != (cw, ch)
+            ):
+                self._dim_surf = pygame.Surface((cw, ch), pygame.SRCALPHA)
+                self._dim_surf.fill((0, 0, 0, 95))
+            surface.blit(self._dim_surf, draw_rect.topleft)
+
+        # Border: cyan for selected, border_bg for unselected
         if selected:
-            pygame.draw.rect(surface, config.VIOLET, draw_rect, 3, border_radius=2)
-            # Add inline cyan highlight line to card top edge
-            pygame.draw.line(
-                surface,
-                config.CYAN,
-                (draw_rect.x + 2, draw_rect.y + 1),
-                (draw_rect.x + draw_rect.width - 3, draw_rect.y + 1),
-                2,
-            )
+            pygame.draw.rect(surface, config.CYAN, draw_rect, 1, border_radius=6)
         else:
-            pygame.draw.rect(surface, config.BORDER_BG, draw_rect, 1)
+            pygame.draw.rect(surface, config.BORDER_BG, draw_rect, 1, border_radius=6)
 
     def _draw_empty(self, surface: pygame.Surface):
-        try:
-            font = pygame.font.SysFont("Inter,DejaVuSans,sans", 24)
-        except Exception:
-            font = pygame.font.Font(None, 28)
-        txt = font.render("No games found — loading library...", True, config.GREY)
+        if self._empty_font is None:
+            try:
+                self._empty_font = pygame.font.SysFont("Inter,DejaVuSans,sans", 24)
+            except Exception:
+                self._empty_font = pygame.font.Font(None, 28)
+        txt = self._empty_font.render("No games found — loading library...", True, config.GREY)
         cx = self.rect.x + self.rect.width // 2 - txt.get_width() // 2
         cy = self.rect.y + self.rect.height // 2 - txt.get_height() // 2
         surface.blit(txt, (cx, cy))
