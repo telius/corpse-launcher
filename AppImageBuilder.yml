@@ -1,0 +1,50 @@
+version: 1
+AppDir:
+  path: ./AppDir
+  app_info:
+    id: corpse-launcher
+    name: corpse-launcher
+    icon: corpse-launcher
+    version: latest
+    exec: usr/bin/python3
+    exec_args: "$APPDIR/corpse-launcher.py"
+  apt:
+    arch: amd64
+    sources:
+      - query: deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+      - query: deb http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+    include:
+      - python3
+      - python3-pip
+      - python3-venv
+      - libsdl2-2.0-0
+      - libsdl2-mixer-2.0-0
+      - libsdl2-image-2.0-0
+      - libsdl2-ttf-2.0-0
+      - libportmidi0
+      - libsndfile1
+      - x11-utils
+  files:
+    include:
+      - corpse-launcher.py
+      - config.py
+      - launcher.py
+      - config.example.toml
+      - requirements.txt
+      - ui/
+      - data/
+      - controller/
+      - assets/
+  python:
+    version: 3.12
+    requirements:
+      - pygame>=2.6.0
+      - numpy>=1.24.0
+      - requests>=2.31.0
+      - tomli>=2.0.0; python_version < '3.11'
+      - vdf>=3.4
+
+AppImage:
+  arch: x86_64
+  update-information: 'none'
+  sign-key: None
