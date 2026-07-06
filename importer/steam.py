@@ -191,6 +191,11 @@ def import_games() -> list[Game]:
             slug = _make_slug(name, appid)
             art = _find_steam_art(appid)
 
+            # Retrieve cached IGDB year if available to populate Steam release years
+            import data.igdb as igdb
+            igdb_meta = igdb.get_cached_metadata(slug)
+            year = igdb_meta.get("release_year") if igdb_meta else None
+
             game = Game(
                 slug=slug,
                 name=name,
@@ -201,6 +206,7 @@ def import_games() -> list[Game]:
                 install_dir=install_dir,
                 playtime_minutes=playtimes.get(appid, 0),
                 last_played=0,  # could read from localconfig too
+                year=year,
                 _mtime=acf_path.stat().st_mtime,
             )
             games.append(game)

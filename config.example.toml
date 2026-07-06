@@ -6,6 +6,7 @@
 window_width  = 1280
 window_height = 720
 fps           = 60
+vsync         = true
 show_playtime = true
 # Sort: "name" | "playtime" | "last_played"
 sort_by = "name"
@@ -29,3 +30,11 @@ grid_gap         = 12
 sidebar_width    = 300
 card_border_width = 2
 animation_speed  = 12.0   # higher = snappier scroll/selection
+pixel_shift      = false  # OLED pixel shifting
+animations       = false  # smooth scroll / cover art transitions
+
+[igdb]
+# Get credentials by registering an app at https://dev.twitch.tv/console
+client_id     = ""
+client_secret = ""
+

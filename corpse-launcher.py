@@ -123,8 +123,9 @@ class App:
             pass
 
         w, h = config.window_size()
+        vsync_val = 1 if config.get("general", "vsync") else 0
         self.screen = pygame.display.set_mode(
-            (w, h), pygame.RESIZABLE | pygame.DOUBLEBUF, vsync=1
+            (w, h), pygame.RESIZABLE | pygame.DOUBLEBUF, vsync=vsync_val
         )
         self.clock = pygame.time.Clock()
         self.running = True
@@ -218,14 +219,19 @@ class App:
     # -----------------------------------------------------------------------
 
     def _handle_action(self, action: Action):
-        self._needs_draw = True  # any action probably causes a visual change
+        if action != Action.MOUSE_HOVER:
+            self._needs_draw = True  # any discrete action causes a visual change
 
         # ── Keybinds overlay absorbs everything when open ─────────────────
         if self.keybinds.is_open:
-            if action in (Action.HELP, Action.BACK, Action.QUIT):
+            if action in (Action.HELP, Action.BACK, Action.QUIT, Action.MOUSE_RIGHT_CLICK):
                 self.keybinds.close()
             elif action == Action.TOGGLE_PIXELSHIFT:
                 self.keybinds.toggle_pixel_shift()
+            elif action == Action.TOGGLE_FPS:
+                self.keybinds.toggle_fps(self)
+            elif action == Action.TOGGLE_ANIMATIONS:
+                self.keybinds.toggle_animations(self)
             return
 
         # ── HELP toggles keybinds overlay from anywhere ───────────────────
@@ -264,7 +270,7 @@ class App:
                     except Exception:
                         pass
                     self._refresh_grid()  # visibility may have changed (hide/unhide)
-                case Action.BACK | Action.DETAILS | Action.QUIT:
+                case Action.BACK | Action.DETAILS | Action.QUIT | Action.MOUSE_RIGHT_CLICK:
                     self.details.close()
                     try:
                         if pygame.mixer.get_init():
@@ -376,17 +382,17 @@ class App:
 
             case Action.MOUSE_CLICK:
                 mx, my = self.input.mouse_pos
+                if self.sidebar.handle_click(mx, my):
+                    return
+
                 idx = self.grid.click_at(mx, my)
                 if idx is not None:
-                    if idx == self.grid.selected:
-                        # Second click on same = open details
-                        g = self.grid.selected_game
-                        if g:
-                            self.details.open(g)
-                    else:
-                        self.grid.selected = idx
-                        self.grid.dirty = True
-                        self.sidebar.set_game(self.grid.selected_game)
+                    self.grid.selected = idx
+                    self.grid.dirty = True
+                    self.sidebar.set_game(self.grid.selected_game)
+                    g = self.grid.selected_game
+                    if g:
+                        self._do_launch(g)
 
             case Action.MOUSE_HOVER:
                 # Direct O(1) hover selection change
@@ -396,16 +402,18 @@ class App:
                     self.grid.selected = idx
                     self.grid.dirty = True
                     self.sidebar.set_game(self.grid.selected_game)
+                    self._needs_draw = True
 
-            case Action.MOUSE_DBLCLICK:
+            case Action.MOUSE_RIGHT_CLICK:
                 mx, my = self.input.mouse_pos
                 idx = self.grid.click_at(mx, my)
                 if idx is not None:
                     self.grid.selected = idx
                     self.grid.dirty = True
+                    self.sidebar.set_game(self.grid.selected_game)
                     g = self.grid.selected_game
                     if g:
-                        self._do_launch(g)
+                        self.details.open(g)
 
             case Action.REFRESH:
                 self._loading = True
@@ -424,11 +432,9 @@ class App:
 
     def run(self):
         self.IDLE_FPS = 5  # Lower idle throttle to 5 FPS to reduce CPU usage
-        fps = self.TARGET_FPS
-
         while self.running:
             # 1. Frame timing
-            dt = min(self.clock.tick(fps) / 1000.0, 0.05)
+            dt = min(self.clock.tick(self.TARGET_FPS) / 1000.0, 0.05)
 
             # 2. Resize detection
             cur = pygame.display.get_surface().get_size()
@@ -468,6 +474,23 @@ class App:
             # Compute dimmer status (fading triggers drawing updates)
             dim_fade_active = 30.0 < self._idle_time < 32.0
             is_dimmed = self._idle_time > 30.0
+
+            # Strategy C: Flush surface cache and run GC once when fully dimmed to minimize footprint
+            if is_dimmed and not getattr(self, "_dimmed_gc_done", False):
+                import data.art as art
+                import gc
+                
+                # Close overlays if open to restore default grid/sidebar on wake
+                if self.keybinds.is_open:
+                    self.keybinds.close()
+                if self.details.is_open:
+                    self.details.close()
+                    
+                art.clear_all()
+                gc.collect()
+                self._dimmed_gc_done = True
+            elif not is_dimmed:
+                self._dimmed_gc_done = False
 
             # 6. OLED Orbit / Pixel Shift calculation
             t = pygame.time.get_ticks() / 1000.0  # seconds

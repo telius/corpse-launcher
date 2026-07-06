@@ -83,16 +83,25 @@ class DetailsOverlay:
 
     # -----------------------------------------------------------------------
 
+    def close(self):
+        self._open = False
+        self._game = None
+        self._art_surf = None
+        # Strategy B: Release fonts on close to minimize memory footprint
+        self._title_font = None
+        self._meta_font = None
+        self._action_font = None
+        self._hint_font = None
+        import gc
+        gc.collect()
+
     def open(self, game: Game):
+        self._init_fonts()
         self._game = game
         self._open = True
         self._art_surf = None
         self._action_idx = 0
         self._alpha_tw.reset(0.0, 255.0, 0.18)
-
-    def close(self):
-        self._open = False
-        self._game = None
 
     @property
     def is_open(self) -> bool:

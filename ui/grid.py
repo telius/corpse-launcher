@@ -212,10 +212,21 @@ class Grid:
         self._target_y = max(0.0, min(self._target_y, max_scroll))
 
     def set_games(self, games: list[Game]):
+        # Keep track of previously selected game to restore index in new list
+        prev_slug = self.games[self.selected].slug if self.games and self.selected < len(self.games) else None
+        
         self.games = games
-        self.selected = 0
-        self._scroll_y = 0.0
-        self._target_y = 0.0
+        
+        # Try to find the matching game in the new list
+        new_idx = 0
+        if prev_slug:
+            for idx, g in enumerate(self.games):
+                if g.slug == prev_slug:
+                    new_idx = idx
+                    break
+        
+        self.selected = min(max(0, new_idx), max(0, len(self.games) - 1))
+        self._ensure_visible()
         self.dirty = True
 
     def resize(self, rect: pygame.Rect):

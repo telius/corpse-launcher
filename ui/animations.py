@@ -43,6 +43,9 @@ def lerp(current: float, target: float, speed: float, dt: float) -> float:
     dt is frame delta in seconds.
     Returns new current value.
     """
+    import config
+    if not config.get("ui", "animations"):
+        return target
     diff = target - current
     if abs(diff) < 0.5:
         return target
@@ -72,6 +75,11 @@ class Tween:
 
     def update(self, dt: float):
         if self.done:
+            return
+        import config
+        if not config.get("ui", "animations"):
+            self.value = self._end
+            self.done = True
             return
         self._elapsed += dt
         t = min(self._elapsed / self._duration, 1.0)

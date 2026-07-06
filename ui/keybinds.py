@@ -28,6 +28,8 @@ _KEYBINDS = [
             ("I", "Details / Actions"),
             ("H", "Hide / Unhide game"),
             ("Tab", "Toggle show hidden"),
+            ("F", "Toggle FPS Limit"),
+            ("N", "Toggle Animations"),
             ("F5", "Refresh library"),
         ],
     ),
@@ -54,8 +56,8 @@ class KeybindsOverlay:
     def __init__(self, screen_size: tuple[int, int]):
         self._sw, self._sh = screen_size
         self._open = False
-        # OLED pixel-shift toggle — persisted for the session
-        self._pixel_shift_enabled = True
+        # OLED pixel-shift toggle — loaded from configuration file
+        self._pixel_shift_enabled = config.get("ui", "pixel_shift")
         self._init_fonts()
 
     def _init_fonts(self):
@@ -87,10 +89,22 @@ class KeybindsOverlay:
         self._init_fonts()
 
     def toggle(self):
-        self._open = not self._open
+        if self._open:
+            self.close()
+        else:
+            self._init_fonts()
+            self._open = True
 
     def close(self):
         self._open = False
+        # Strategy B: Release fonts on close to minimize memory footprint
+        self._heading_font = None
+        self._key_font = None
+        self._desc_font = None
+        self._title_font = None
+        self._hint_font = None
+        import gc
+        gc.collect()
 
     @property
     def is_open(self) -> bool:
@@ -102,6 +116,50 @@ class KeybindsOverlay:
 
     def toggle_pixel_shift(self) -> None:
         self._pixel_shift_enabled = not self._pixel_shift_enabled
+        config.set_val("ui", "pixel_shift", self._pixel_shift_enabled)
+
+    def toggle_fps(self, app) -> None:
+        vsync_enabled = config.get("general", "vsync")
+        fps_limit = config.get("general", "fps")
+
+        # Toggle cycle: VSync -> 30 FPS -> 60 FPS -> 144 FPS
+        if vsync_enabled:
+            # Transition to 30 FPS, turn off VSync
+            next_vsync = False
+            next_fps = 30
+        elif fps_limit == 30:
+            next_vsync = False
+            next_fps = 60
+        elif fps_limit == 60:
+            next_vsync = False
+            next_fps = 144
+        else:
+            # From 144 (or other), cycle back to VSync
+            next_vsync = True
+            next_fps = 144
+
+        config.set_val("general", "vsync", next_vsync)
+        config.set_val("general", "fps", next_fps)
+
+        # Apply to app
+        app.TARGET_FPS = next_fps
+        vsync_val = 1 if next_vsync else 0
+        
+        # Recreate display surface to change VSync mode in SDL
+        w, h = app._win_size
+        app.screen = pygame.display.set_mode(
+            (w, h), pygame.RESIZABLE | pygame.DOUBLEBUF, vsync=vsync_val
+        )
+        app._layout()
+
+    def toggle_animations(self, app) -> None:
+        current_anim = config.get("ui", "animations")
+        config.set_val("ui", "animations", not current_anim)
+        # Instantly sync grid scroll if animations are being disabled
+        if current_anim:  # was True, now transitioning to False
+            app.grid._scroll_y = app.grid._target_y
+            app.grid.dirty = True
+        app._needs_draw = True
 
     def draw(self, surface: pygame.Surface):
         if not self._open:
@@ -210,7 +268,7 @@ class KeybindsOverlay:
         panel.blit(settings_label, (20, strip_y))
 
         # Pixel shift toggle pill
-        pill_x = 20 + settings_label.get_width() + 24
+        pill_x = 20 + settings_label.get_width() + 12
         pill_y = strip_y
         enabled = self._pixel_shift_enabled
         pill_color = config.CYAN if enabled else config.GREY
@@ -220,10 +278,9 @@ class KeybindsOverlay:
 
         key_s = self._key_font.render(key_text, True, config.CYAN)
         label_s = self._key_font.render(label_text, True, pill_color)
-        desc_s = self._desc_font.render("OLED burn-in protection", True, config.GREY)
 
         # Highlight pill background
-        pill_w = key_s.get_width() + label_s.get_width() + desc_s.get_width() + 36
+        pill_w = key_s.get_width() + label_s.get_width() + 16
         pill_rect = pygame.Rect(pill_x - 6, pill_y - 3, pill_w, strip_h)
         pill_bg = pygame.Surface(pill_rect.size, pygame.SRCALPHA)
         pill_bg.fill((*config.VIOLET, 30) if enabled else (30, 30, 30, 80))
@@ -234,8 +291,58 @@ class KeybindsOverlay:
         panel.blit(key_s, (tx, pill_y + 4))
         tx += key_s.get_width() + 8
         panel.blit(label_s, (tx, pill_y + 4))
-        tx += label_s.get_width() + 12
-        panel.blit(desc_s, (tx, pill_y + 4))
+
+        # Target FPS / VSync toggle pill
+        fps_pill_x = pill_x + pill_w + 16
+        vsync_enabled = config.get("general", "vsync")
+        fps_limit = config.get("general", "fps")
+        
+        if vsync_enabled:
+            fps_status = "VSYNC"
+        else:
+            fps_status = f"{fps_limit} FPS"
+            
+        fps_key_text = "[F]"
+        fps_label_text = f"Frame Limit: {fps_status}"
+        
+        fps_key_s = self._key_font.render(fps_key_text, True, config.CYAN)
+        fps_label_s = self._key_font.render(fps_label_text, True, config.CYAN)
+        
+        fps_pill_w = fps_key_s.get_width() + fps_label_s.get_width() + 16
+        fps_pill_rect = pygame.Rect(fps_pill_x - 6, pill_y - 3, fps_pill_w, strip_h)
+        fps_pill_bg = pygame.Surface(fps_pill_rect.size, pygame.SRCALPHA)
+        fps_pill_bg.fill((*config.VIOLET, 30))
+        panel.blit(fps_pill_bg, fps_pill_rect.topleft)
+        pygame.draw.rect(panel, config.CYAN, fps_pill_rect, 1)
+        
+        fx = fps_pill_x
+        panel.blit(fps_key_s, (fx, pill_y + 4))
+        fx += fps_key_s.get_width() + 8
+        panel.blit(fps_label_s, (fx, pill_y + 4))
+
+        # Animations toggle pill
+        anim_pill_x = fps_pill_x + fps_pill_w + 16
+        anim_enabled = config.get("ui", "animations")
+        anim_color = config.CYAN if anim_enabled else config.GREY
+        anim_status = "ON" if anim_enabled else "OFF"
+        
+        anim_key_text = "[N]"
+        anim_label_text = f"Animations: {anim_status}"
+        
+        anim_key_s = self._key_font.render(anim_key_text, True, config.CYAN)
+        anim_label_s = self._key_font.render(anim_label_text, True, anim_color)
+        
+        anim_pill_w = anim_key_s.get_width() + anim_label_s.get_width() + 16
+        anim_pill_rect = pygame.Rect(anim_pill_x - 6, pill_y - 3, anim_pill_w, strip_h)
+        anim_pill_bg = pygame.Surface(anim_pill_rect.size, pygame.SRCALPHA)
+        anim_pill_bg.fill((*config.VIOLET, 30) if anim_enabled else (30, 30, 30, 80))
+        panel.blit(anim_pill_bg, anim_pill_rect.topleft)
+        pygame.draw.rect(panel, anim_color, anim_pill_rect, 1)
+        
+        ax = anim_pill_x
+        panel.blit(anim_key_s, (ax, pill_y + 4))
+        ax += anim_key_s.get_width() + 8
+        panel.blit(anim_label_s, (ax, pill_y + 4))
 
         # Border
         pygame.draw.rect(panel, config.BORDER_BG, panel.get_rect(), 2)

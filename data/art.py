@@ -69,7 +69,7 @@ def _cache_key(slug: str, w: int, h: int) -> str:
     return f"{slug}:{w}x{h}"
 
 
-_surface_cache = _LRUCache(maxsize=400)
+_surface_cache = _LRUCache(maxsize=100)
 
 # Small placeholder cache — keyed by (slug, w, h) so placeholders aren't re-rendered
 # every frame while real art is being fetched. NOT the same as _surface_cache
@@ -173,8 +173,15 @@ def _load_surface(path: Path, w: int, h: int) -> Optional[pygame.Surface]:
 
 
 def _fetch_in_background(game: Game):
-    """Download art from SGDB in a background thread."""
+    """Download art from SGDB and metadata from IGDB in a background thread."""
     slug = game.slug
+    # Fetch IGDB metadata in background if credentials present
+    try:
+        import data.igdb as igdb
+        igdb.fetch_metadata(game.name, slug)
+    except Exception as e:
+        print(f"[art] IGDB fetch error for {game.name!r}: {e}")
+
     try:
         print(f"[art] Fetching SGDB art: {game.name!r}")
         path = sgdb.fetch_art(slug, game.steam_appid, game.name)

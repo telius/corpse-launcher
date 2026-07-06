@@ -31,7 +31,8 @@ _DEFAULTS: dict = {
     "general": {
         "window_width": 1280,
         "window_height": 720,
-        "fps": 144,
+        "fps": 60,
+        "vsync": True,
         "show_playtime": True,
         "sort_by": "name",  # "name" | "playtime" | "last_played"
     },
@@ -42,6 +43,10 @@ _DEFAULTS: dict = {
         "prefer_animated": False,
         "card_width": 190,  # display width per card in the grid
     },
+    "igdb": {
+        "client_id": "",
+        "client_secret": "",
+    },
     "ui": {
         "grid_cols": 4,
         "grid_gap": 30,
@@ -49,6 +54,8 @@ _DEFAULTS: dict = {
         "card_border_width": 2,
         "scroll_speed": 8,
         "animation_speed": 12.0,  # higher = snappier
+        "pixel_shift": False,  # OLED orbital pixel shift state
+        "animations": False,  # enable transitions and scrolling animations
     },
 }
 
@@ -80,10 +87,40 @@ def _load() -> dict:
 
 CFG = _load()
 
+
+def save_config() -> None:
+    """Write current in-memory CFG dict back to CONFIG_FILE as TOML."""
+    # Write simple TOML manually to avoid dependencies
+    lines = []
+    for section, keys in CFG.items():
+        lines.append(f"[{section}]")
+        for key, val in keys.items():
+            if isinstance(val, bool):
+                val_str = "true" if val else "false"
+            elif isinstance(val, (int, float)):
+                val_str = str(val)
+            else:
+                # String escapes
+                val_str = f'"{str(val)}"'
+            lines.append(f"{key} = {val_str}")
+        lines.append("")
+    try:
+        CONFIG_FILE.write_text("\n".join(lines), encoding="utf-8")
+    except Exception as e:
+        print(f"[config] Error saving config to {CONFIG_FILE}: {e}")
+
+
 # Ensure cache / config dirs exist
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 ART_CACHE.mkdir(parents=True, exist_ok=True)
+
+# Write .trackerignore files to stop localsearch-3 from monitoring these directories
+try:
+    (CONFIG_DIR / ".trackerignore").touch(exist_ok=True)
+    (CACHE_DIR / ".trackerignore").touch(exist_ok=True)
+except Exception as e:
+    print(f"[config] Warning: could not write .trackerignore: {e}")
 
 # ---------------------------------------------------------------------------
 # Color palette — Dracula variant
@@ -113,6 +150,16 @@ def get(section: str, key: str):
     return CFG[section][key]
 
 
+def set_val(section: str, key: str, value) -> None:
+    """Set in-memory config value and persist to CONFIG_FILE only if changed."""
+    if section not in CFG:
+        CFG[section] = {}
+    if CFG[section].get(key) == value:
+        return
+    CFG[section][key] = value
+    save_config()
+
+
 def sgdb_api_key() -> str:
     return CFG["art"]["sgdb_api_key"]
 
@@ -140,3 +187,8 @@ def grid_gap() -> int:
 
 def sidebar_width() -> int:
     return CFG["ui"]["sidebar_width"]
+
+
+def igdb_credentials() -> tuple[str, str]:
+    igdb_sec = CFG.get("igdb", {})
+    return igdb_sec.get("client_id", ""), igdb_sec.get("client_secret", "")

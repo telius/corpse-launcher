@@ -55,8 +55,11 @@ class Action(Enum):
     QUIT = auto()  # keyboard ESC
     HELP = auto()  # F1 → show keybinds overlay
     TOGGLE_PIXELSHIFT = auto()  # P → toggle OLED pixel shift (in F1 menu)
+    TOGGLE_FPS = auto()  # F → toggle target FPS limits (vsync / 30 / 60 / 144)
+    TOGGLE_ANIMATIONS = auto()  # N → toggle animations (in F1 menu)
     MOUSE_CLICK = auto()  # left mouse click (carries position via event data)
     MOUSE_DBLCLICK = auto()  # double-click
+    MOUSE_RIGHT_CLICK = auto()  # right mouse click
     SCROLL_UP = auto()  # mouse wheel up
     SCROLL_DOWN = auto()  # mouse wheel down
     MOUSE_HOVER = auto()  # mouse hover (position updated in mouse_pos)
@@ -148,6 +151,8 @@ def _build_key_map() -> None:
         pygame.K_PAGEUP:   Action.PAGE_LEFT,
         pygame.K_PAGEDOWN: Action.PAGE_RIGHT,
         pygame.K_p:        Action.TOGGLE_PIXELSHIFT,
+        pygame.K_f:        Action.TOGGLE_FPS,
+        pygame.K_n:        Action.TOGGLE_ANIMATIONS,
     })
 
 
@@ -268,12 +273,10 @@ class InputHandler:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # left click
                     self.mouse_pos = event.pos
-                    now = time.monotonic()
-                    if now - self._last_click_time < self._dblclick_threshold:
-                        actions.append(Action.MOUSE_DBLCLICK)
-                    else:
-                        actions.append(Action.MOUSE_CLICK)
-                    self._last_click_time = now
+                    actions.append(Action.MOUSE_CLICK)
+                elif event.button == 3:  # right click
+                    self.mouse_pos = event.pos
+                    actions.append(Action.MOUSE_RIGHT_CLICK)
                 elif event.button == 4:  # scroll up
                     actions.append(Action.SCROLL_UP)
                 elif event.button == 5:  # scroll down
