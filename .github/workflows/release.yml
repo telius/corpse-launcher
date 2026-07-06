@@ -21,22 +21,77 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build AppImage (Docker)
+      - name: Install System Dependencies
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            --device /dev/fuse \
-            --cap-add SYS_ADMIN \
-            --security-opt apparmor:unconfined \
-            appimagecrafters/appimage-builder:latest \
-            appimage-builder --skip-tests
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev python3-pip python3-setuptools patchelf desktop-file-utils
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller pygame numpy requests vdf
+
+      - name: Build Standalone Executable with PyInstaller
+        run: |
+          pyinstaller --clean --noconfirm \
+            --add-data "assets:assets" \
+            --add-data "ui:ui" \
+            --add-data "data:data" \
+            --add-data "controller:controller" \
+            --add-data "config.example.toml:." \
+            --add-data "launcher.py:." \
+            --add-data "config.py:." \
+            corpse-launcher.py
+
+      - name: Create AppDir Layout
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          
+          # Copy executable and assets
+          cp -r dist/corpse-launcher/* AppDir/usr/bin/
+          
+          # Desktop entry
+          cp corpse-launcher.desktop AppDir/usr/share/applications/
+          cp AppDir/usr/share/applications/corpse-launcher.desktop AppDir/
+          
+          # AppRun script (simple bash wrapper to invoke python binary)
+          cat << 'EOF' > AppDir/AppRun
+          #!/bin/sh
+          SELF=$(dirname "$(readlink -f "$0")")
+          exec "$SELF/usr/bin/corpse-launcher" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          # Icon
+          if [ -d "assets" ] && [ -f "assets/icon.png" ]; then
+            cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/corpse-launcher.png
+            cp assets/icon.png AppDir/corpse-launcher.png
+          else
+            # Fallback icon
+            touch AppDir/corpse-launcher.png
+          fi
+
+      - name: Download AppImageTool
+        run: |
+          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+
+      - name: Package AppImage (FUSE-less mode)
+        run: |
+          # Run appimagetool by extracting it, bypassing FUSE mount blocks
+          ./appimagetool --appimage-extract-and-run AppDir corpse-launcher-x86_64.AppImage
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            *.AppImage
-            *.zsync
+          files: corpse-launcher-x86_64.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
