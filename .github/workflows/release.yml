@@ -71,13 +71,8 @@ jobs:
           chmod +x AppDir/AppRun
           
           # Icon
-          if [ -d "assets" ] && [ -f "assets/icon.png" ]; then
-            cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/corpse-launcher.png
-            cp assets/icon.png AppDir/corpse-launcher.png
-          else
-            # Fallback icon
-            touch AppDir/corpse-launcher.png
-          fi
+          cp corpse-launcher.png AppDir/usr/share/icons/hicolor/256x256/apps/corpse-launcher.png
+          cp corpse-launcher.png AppDir/corpse-launcher.png
 
       - name: Download AppImageTool
         run: |
