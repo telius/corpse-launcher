@@ -432,9 +432,10 @@ class App:
 
     def run(self):
         self.IDLE_FPS = 5  # Lower idle throttle to 5 FPS to reduce CPU usage
+        current_tick_fps = self.TARGET_FPS
         while self.running:
             # 1. Frame timing
-            dt = min(self.clock.tick(self.TARGET_FPS) / 1000.0, 0.05)
+            dt = min(self.clock.tick(current_tick_fps) / 1000.0, 0.05)
 
             # 2. Resize detection
             cur = pygame.display.get_surface().get_size()
@@ -493,14 +494,18 @@ class App:
                 self._dimmed_gc_done = False
 
             # 6. OLED Orbit / Pixel Shift calculation
-            t = pygame.time.get_ticks() / 1000.0  # seconds
-            theta = (t / 180.0) * 2 * math.pi  # 180s orbit period, 2px radius
-            new_shift_x = int(math.cos(theta) * 2)
-            new_shift_y = int(math.sin(theta) * 2)
-            if new_shift_x != self._shift_x or new_shift_y != self._shift_y:
-                self._shift_x = new_shift_x
-                self._shift_y = new_shift_y
-                self._needs_draw = True
+            if self.keybinds.pixel_shift_enabled:
+                t = pygame.time.get_ticks() / 1000.0  # seconds
+                theta = (t / 180.0) * 2 * math.pi  # 180s orbit period, 2px radius
+                new_shift_x = int(math.cos(theta) * 2)
+                new_shift_y = int(math.sin(theta) * 2)
+                if new_shift_x != self._shift_x or new_shift_y != self._shift_y:
+                    self._shift_x = new_shift_x
+                    self._shift_y = new_shift_y
+                    self._needs_draw = True
+            else:
+                self._shift_x = 0
+                self._shift_y = 0
 
             # 7. Action processing
             for action in actions:
@@ -532,6 +537,7 @@ class App:
                 or dim_fade_active
             )
             fps = self.TARGET_FPS if needs_render else self.IDLE_FPS
+            current_tick_fps = fps
 
 
             # 10. Draw
