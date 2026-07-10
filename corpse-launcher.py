@@ -431,7 +431,7 @@ class App:
     # -----------------------------------------------------------------------
 
     def run(self):
-        self.IDLE_FPS = 5  # Lower idle throttle to 5 FPS to reduce CPU usage
+        self.IDLE_FPS = 1  # Lower idle throttle to 1 FPS to minimize CPU usage when inactive
         current_tick_fps = self.TARGET_FPS
         while self.running:
             # 1. Frame timing
