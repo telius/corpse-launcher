@@ -536,8 +536,13 @@ class App:
                 or self.keybinds.is_open
                 or dim_fade_active
             )
-            fps = self.TARGET_FPS if needs_render else self.IDLE_FPS
-            current_tick_fps = fps
+            
+            # If window is active/focused, run tick at full target rate to handle inputs instantly,
+            # but only redraw if something has changed. If backgrounded, throttle to save CPU.
+            if pygame.key.get_focused():
+                current_tick_fps = self.TARGET_FPS
+            else:
+                current_tick_fps = self.IDLE_FPS
 
 
             # 10. Draw
