@@ -150,9 +150,13 @@ def fetch_art(
 
     sgdb_id: Optional[int] = None
 
-    # Try steam appid first (faster, more accurate)
+    # Try steam appid first (faster, more accurate) - only for official Steam IDs
     if steam_appid:
-        sgdb_id = _get_game_id_by_steam_appid(steam_appid)
+        try:
+            if int(steam_appid) <= 0xFFFFFFFF:
+                sgdb_id = _get_game_id_by_steam_appid(steam_appid)
+        except ValueError:
+            pass
 
     # Fall back to name search
     if sgdb_id is None and game_name:
@@ -183,7 +187,11 @@ def get_sgdb_id(name: str, steam_appid: Optional[str] = None) -> Optional[int]:
     """Resolve steam_appid or game name to SGDB game ID."""
     sgdb_id: Optional[int] = None
     if steam_appid:
-        sgdb_id = _get_game_id_by_steam_appid(steam_appid)
+        try:
+            if int(steam_appid) <= 0xFFFFFFFF:
+                sgdb_id = _get_game_id_by_steam_appid(steam_appid)
+        except ValueError:
+            pass
     if sgdb_id is None and name:
         sgdb_id = _get_game_id_by_name(name)
     return sgdb_id

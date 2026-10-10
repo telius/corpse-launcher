@@ -111,10 +111,14 @@ class DetailsOverlay:
     # Input — called by main loop when overlay is open
 
     def handle_up(self):
-        self._action_idx = (self._action_idx - 1) % self._num_actions()
+        n = self._num_actions()
+        if n > 0:
+            self._action_idx = (self._action_idx - 1) % n
 
     def handle_down(self):
-        self._action_idx = (self._action_idx + 1) % self._num_actions()
+        n = self._num_actions()
+        if n > 0:
+            self._action_idx = (self._action_idx + 1) % n
 
     def handle_confirm(self) -> bool:
         """Execute selected action. Returns True if overlay should close."""
@@ -124,7 +128,12 @@ class DetailsOverlay:
         if 0 <= self._action_idx < len(actions):
             label, fn = actions[self._action_idx]
             fn()
-            if label in ("Next Cover Art", "Add Custom Art"):
+            if label in (
+                "Next Cover Art",
+                "Add Custom Art",
+                "Change Custom Art",
+                "Remove Custom Art",
+            ):
                 return False
         return True  # always close after action
 
@@ -135,18 +144,29 @@ class DetailsOverlay:
         if not self._game:
             return []
         is_hid = hidden_store.is_hidden(self._game.slug)
-        actions = [
+        has_custom = art_module.has_custom_art(self._game)
+        actions: list[tuple[str, Callable]] = [
             ("Launch game", lambda: self._on_launch(self._game)),
             (
                 "Unhide game" if is_hid else "Hide game",
                 lambda: hidden_store.toggle(self._game.slug),
             ),
-            ("Next Cover Art", self._trigger_swap_art),
-            ("Add Custom Art", self._trigger_select_custom_art),
         ]
+        if not has_custom:
+            actions.append(("Next Cover Art", self._trigger_swap_art))
+        actions.append(
+            (
+                "Change Custom Art" if has_custom else "Add Custom Art",
+                self._trigger_select_custom_art,
+            )
+        )
+        if has_custom:
+            actions.append(("Remove Custom Art", self._trigger_remove_custom_art))
         return actions
 
     def _trigger_swap_art(self):
+        if not self._game or art_module.has_custom_art(self._game):
+            return
         import threading
 
         def worker():
@@ -154,6 +174,15 @@ class DetailsOverlay:
                 self._art_surf = None  # Force reload
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _trigger_remove_custom_art(self):
+        if not self._game:
+            return
+        if art_module.remove_custom_art(self._game):
+            self._art_surf = None  # Force reload details image
+            self._action_idx = min(
+                self._action_idx, max(0, self._num_actions() - 1)
+            )
 
     def _trigger_select_custom_art(self):
         import subprocess
@@ -179,6 +208,13 @@ class DetailsOverlay:
                     if src_path.exists():
                         dest_dir = config.CONFIG_DIR / "custom_art"
                         dest_dir.mkdir(parents=True, exist_ok=True)
+                        for ext in (".png", ".jpg", ".jpeg", ".webp"):
+                            old_p = dest_dir / f"{self._game.slug}{ext}"
+                            if old_p.exists():
+                                try:
+                                    old_p.unlink()
+                                except Exception:
+                                    pass
                         dest_path = (
                             dest_dir / f"{self._game.slug}{src_path.suffix.lower()}"
                         )
@@ -189,6 +225,9 @@ class DetailsOverlay:
                         # Invalidate cache
                         art_module.invalidate(self._game.slug)
                         self._art_surf = None  # Force reload details image
+                        self._action_idx = min(
+                            self._action_idx, max(0, self._num_actions() - 1)
+                        )
             except Exception as e:
                 print(f"[details] Error picking custom art: {e}")
 

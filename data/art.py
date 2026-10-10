@@ -209,6 +209,38 @@ def _fetch_in_background(game: Game):
 # ---------------------------------------------------------------------------
 
 
+def get_custom_art_path(game: Game | str) -> Optional[Path]:
+    """Return the Path to custom artwork for this game if one exists, else None."""
+    slug = game.slug if isinstance(game, Game) else game
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        p = _custom_art_dir / f"{slug}{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+def has_custom_art(game: Game | str) -> bool:
+    """Return True if custom artwork is present for this game."""
+    return get_custom_art_path(game) is not None
+
+
+def remove_custom_art(game: Game | str) -> bool:
+    """Delete any custom artwork files for this game and invalidate caches."""
+    slug = game.slug if isinstance(game, Game) else game
+    removed = False
+    for ext in (".png", ".jpg", ".jpeg", ".webp"):
+        p = _custom_art_dir / f"{slug}{ext}"
+        if p.exists():
+            try:
+                p.unlink()
+                removed = True
+            except Exception as e:
+                print(f"[art] Failed to remove custom art {p.name}: {e}")
+    if removed:
+        invalidate(slug)
+    return removed
+
+
 def get_surface(game: Game, w: int, h: int) -> pygame.Surface:
     """
     Return a Surface for game art at size (w, h).
@@ -228,15 +260,13 @@ def get_surface(game: Game, w: int, h: int) -> pygame.Surface:
         return cached
 
     # 1.5 Custom art directory override (no mkdir — ensured at module load)
-    for ext in (".png", ".jpg", ".jpeg", ".webp"):
-        p = _custom_art_dir / f"{game.slug}{ext}"
-        if p.exists():
-            surf = _load_surface(p, w, h)
-            if surf:
-                _surface_cache.put(key, surf)
-                game.art_loaded = True
-                return surf
-            break  # file exists but failed to load — fall through
+    custom_p = get_custom_art_path(game)
+    if custom_p:
+        surf = _load_surface(custom_p, w, h)
+        if surf:
+            _surface_cache.put(key, surf)
+            game.art_loaded = True
+            return surf
 
     # 2. Known art path on disk
     if game.art_path and game.art_path.exists():
@@ -286,6 +316,10 @@ def invalidate(slug: str):
 
 def swap_to_next_art(game: Game) -> bool:
     """Fetch next available grid from SGDB, download and overwrite local cache."""
+
+    if has_custom_art(game):
+        print(f"[art] Blocked swapping art for {game.name}: custom art is selected")
+        return False
 
     if not sgdb.has_key():
         return False

@@ -36,7 +36,8 @@ class Game:
     platform: Platform = Platform.UNKNOWN
 
     # Steam-specific
-    steam_appid: Optional[str] = None  # "1091500"
+    steam_appid: Optional[str] = None  # "1091500" or 64-bit shortcut id
+    is_shortcut: bool = False
 
     # Lutris-specific
     lutris_id: Optional[int] = None  # pga.db row id

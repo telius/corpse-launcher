@@ -136,7 +136,12 @@ def _import_from_pga(db_path: Path) -> list[Game]:
             norm_slug = "diablo-iv"
             year = 2023
             platform = Platform.BATTLENET
-        elif "launch WoW" in args_exec:
+        elif "launch WoWF" in args_exec:
+            name = name if name and name != "Battle.net" else "World of Warcraft Forever"
+            norm_slug = _normalise_slug(raw_slug) if raw_slug and raw_slug != "battlenet" else "world-of-warcraft-forever"
+            year = 2026
+            platform = Platform.BATTLENET
+        elif re.search(r"\blaunch WoW\b", args_exec):
             name = "World of Warcraft"
             norm_slug = "world-of-warcraft"
             year = 2004
@@ -156,6 +161,21 @@ def _import_from_pga(db_path: Path) -> list[Game]:
             norm_slug = "diablo"
             year = 1996
             platform = Platform.BATTLENET
+        elif re.search(r"\blaunch W1R\b", args_exec, re.IGNORECASE):
+            name = name if name and name != "Battle.net" else "Warcraft: Remastered"
+            norm_slug = _normalise_slug(raw_slug) if raw_slug and raw_slug != "battlenet" else "warcraft-remastered"
+            year = 2024
+            platform = Platform.BATTLENET
+        elif re.search(r"\blaunch W2R\b", args_exec, re.IGNORECASE):
+            name = name if name and name != "Battle.net" else "Warcraft II: Remastered"
+            norm_slug = _normalise_slug(raw_slug) if raw_slug and raw_slug != "battlenet" else "warcraft-ii-remastered"
+            year = 2024
+            platform = Platform.BATTLENET
+        elif re.search(r"\blaunch W3\b", args_exec, re.IGNORECASE):
+            name = name if name and name != "Battle.net" else "Warcraft III: Reforged"
+            norm_slug = _normalise_slug(raw_slug) if raw_slug and raw_slug != "battlenet" else "warcraft-iii-reforged"
+            year = 2020
+            platform = Platform.BATTLENET
 
         # Fix general release years that are known to be 1996 (lutris battlenet prefix template defaults)
         if year == 1996:
@@ -165,6 +185,8 @@ def _import_from_pga(db_path: Path) -> list[Game]:
                 year = 2023
             elif "starcraft-ii" in norm_slug:
                 year = 2010
+            elif "world-of-warcraft-forever" in norm_slug:
+                year = 2026
             elif "world-of-warcraft" in norm_slug:
                 year = 2004
             elif "battlenet" in norm_slug:

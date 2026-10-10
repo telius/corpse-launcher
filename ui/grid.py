@@ -98,11 +98,28 @@ class Grid:
             return max(0, (self.rect.height - self.total_height) // 2)
         return 0
 
+    def _row_offset(self, row: int) -> int:
+        """Horizontal centering offset for the last row if it doesn't fill completely."""
+        total = len(self.games)
+        if total <= 0:
+            return 0
+        last_row = (total - 1) // self.cols
+        rem = total % self.cols
+        if row == last_row and rem != 0:
+            return ((self.cols - rem) * (self.card_w + self.GAP)) // 2
+        return 0
+
     def _card_rect(self, index: int) -> pygame.Rect:
         """Card rect in grid-local coordinates (before scroll applied)."""
         row = index // self.cols
         col = index % self.cols
-        x = self.rect.x + self._h_offset + self.GAP + col * (self.card_w + self.GAP)
+        x = (
+            self.rect.x
+            + self._h_offset
+            + self.GAP
+            + self._row_offset(row)
+            + col * (self.card_w + self.GAP)
+        )
         y = self._v_offset + self.GAP + row * (self.card_h + self.GAP)
         return pygame.Rect(x, y, self.card_w, self.card_h)
 
@@ -176,20 +193,32 @@ class Grid:
         """Return the game index at screen position (mx, my) in O(1) time, or None."""
         if not self.rect.collidepoint(mx, my):
             return None
-        
+
+        total = len(self.games)
+        if total == 0:
+            return None
+
         col_w = self.card_w + self.GAP
         row_h = self.card_h + self.GAP
-        
-        col = (mx - self.rect.x - self._h_offset - self.GAP) // col_w
+
         row = (my - self.rect.y - self._v_offset - self.GAP + int(self._scroll_y)) // row_h
-        
-        if col < 0 or col >= self.cols or row < 0:
+        if row < 0 or row >= self.rows:
             return None
-            
+
+        row_offset = self._row_offset(row)
+        col = (mx - self.rect.x - self._h_offset - self.GAP - row_offset) // col_w
+
+        last_row = (total - 1) // self.cols
+        rem = total % self.cols
+        max_col_in_row = rem if (row == last_row and rem != 0) else self.cols
+
+        if col < 0 or col >= max_col_in_row:
+            return None
+
         idx = row * self.cols + col
-        if idx >= len(self.games):
+        if idx >= total:
             return None
-            
+
         # Verify mouse is actually inside the card rect boundaries (and not in the gaps)
         card_r = self._card_rect(idx)
         card_r.y = card_r.y - int(self._scroll_y) + self.rect.y

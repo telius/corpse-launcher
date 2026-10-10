@@ -278,9 +278,12 @@ class Sidebar:
         elif "satisfactory" in title:
             links.append(("satisfactory calculator", "https://www.satisfactory-calculator.com"))
             links.append(("satisfactory tools", "https://www.satisfactorytools.com"))
+        elif "minecraft" in title:
+            links.append(("minecraft wiki", "https://minecraft.wiki"))
 
-        # Add Steam app store/community links if it's a Steam game (independent of title matches)
-        if self._game.platform == Platform.STEAM and self._game.steam_appid:
+        # Add Steam app store/community links if it's an official Steam game (not a shortcut)
+        is_shortcut = getattr(self._game, "is_shortcut", False)
+        if self._game.platform == Platform.STEAM and self._game.steam_appid and not is_shortcut:
             appid = self._game.steam_appid
             links.append(("steam store", f"https://store.steampowered.com/app/{appid}"))
             links.append(("steam community", f"https://steamcommunity.com/app/{appid}"))
@@ -289,6 +292,8 @@ class Sidebar:
                 lutris_slug = self._game.lutris_slug or self._game.slug
                 links.append(("lutris page", f"https://lutris.net/games/{lutris_slug}"))
                 links.append(("pcgamingwiki", f"https://www.pcgamingwiki.com/api/appid.php?appid={self._game.steam_appid}" if self._game.steam_appid else f"https://www.pcgamingwiki.com/w/index.php?search={self._game.name}"))
+            else:
+                links.append(("pcgamingwiki", f"https://www.pcgamingwiki.com/w/index.php?search={self._game.name}"))
 
         if links:
             # We place the links at a static position above the F1 hint (which is at height - 30)

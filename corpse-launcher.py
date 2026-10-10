@@ -11,9 +11,28 @@ Usage:
 from __future__ import annotations
 import math
 import os
+import signal
 import sys
 import time
 import threading
+
+# Ensure line-buffered stdout for systemd journal logging
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
+
+def _sig_handler(signum, frame):
+    try:
+        pygame.quit()
+    except Exception:
+        pass
+    sys.exit(0)
+
+
+signal.signal(signal.SIGTERM, _sig_handler)
+signal.signal(signal.SIGINT, _sig_handler)
 
 # ── Display detection before pygame ─────────────────────────────────────────
 if "SDL_VIDEODRIVER" not in os.environ:
@@ -219,6 +238,11 @@ class App:
     # -----------------------------------------------------------------------
 
     def _handle_action(self, action: Action):
+        if action == Action.FOCUS_GAINED:
+            self._idle_time = 0.0
+            self._needs_draw = True
+            return
+
         if action != Action.MOUSE_HOVER:
             self._needs_draw = True  # any discrete action causes a visual change
 
@@ -431,7 +455,7 @@ class App:
     # -----------------------------------------------------------------------
 
     def run(self):
-        self.IDLE_FPS = 1  # Lower idle throttle to 1 FPS to minimize CPU usage when inactive
+        self.IDLE_FPS = 15  # 15 FPS idle throttle when inactive to maintain responsiveness
         current_tick_fps = self.TARGET_FPS
         while self.running:
             # 1. Frame timing
@@ -537,12 +561,25 @@ class App:
                 or dim_fade_active
             )
             
-            # If window is active/focused, run tick at full target rate to handle inputs instantly,
-            # but only redraw if something has changed. If backgrounded, throttle to save CPU.
-            if pygame.key.get_focused():
-                current_tick_fps = self.TARGET_FPS
-            else:
-                current_tick_fps = self.IDLE_FPS
+            # Determine whether application is active or needs rendering.
+            # Run at full TARGET_FPS if:
+            # - Anything needs to be rendered or is animating (scrolling, UI transitions, loading)
+            # - The window has keyboard focus or mouse focus
+            # - InputHandler registered window focus gained or mouse inside window
+            # - Any input action or mouse movement arrived this frame
+            # - User was active recently (< 3.0 seconds ago)
+            # Only throttle to IDLE_FPS (15 FPS) when truly in the background and idle.
+            is_active = (
+                needs_render
+                or pygame.key.get_focused()
+                or pygame.mouse.get_focused()
+                or getattr(self.input, "has_focus", True)
+                or getattr(self.input, "mouse_in_window", False)
+                or bool(actions)
+                or mouse_moved
+                or (self._idle_time < 3.0)
+            )
+            current_tick_fps = self.TARGET_FPS if is_active else self.IDLE_FPS
 
 
             # 10. Draw

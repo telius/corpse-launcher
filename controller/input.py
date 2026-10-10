@@ -63,6 +63,7 @@ class Action(Enum):
     SCROLL_UP = auto()  # mouse wheel up
     SCROLL_DOWN = auto()  # mouse wheel down
     MOUSE_HOVER = auto()  # mouse hover (position updated in mouse_pos)
+    FOCUS_GAINED = auto()  # window regained focus or pointer entered
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +186,10 @@ class InputHandler:
         self._last_click_time: float = 0.0
         self._dblclick_threshold: float = 0.35  # seconds
 
+        # Window focus / pointer state
+        self.has_focus: bool = True
+        self.mouse_in_window: bool = True
+
         self._init_controller()
         if not KEY_MAP:
             _build_key_map()
@@ -248,10 +253,6 @@ class InputHandler:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 actions.append(Action.QUIT)
-            elif event.type == pygame.VIDEORESIZE:
-                pygame.display.set_mode(
-                    (event.w, event.h), pygame.RESIZABLE | pygame.DOUBLEBUF, vsync=1
-                )
 
             # Keyboard press
             elif event.type == pygame.KEYDOWN:
@@ -311,7 +312,12 @@ class InputHandler:
 
             # Joystick axis (controller re-connect)
             elif event.type == pygame.JOYDEVICEADDED:
-                self._init_controller()
+                if self._controller is None:
+                    try:
+                        self._controller = pygame.joystick.Joystick(event.device_index)
+                        self._controller.init()
+                    except Exception as e:
+                        print(f"[input] Controller init warning: {e}")
 
             elif event.type == pygame.JOYDEVICEREMOVED:
                 self._controller = None
@@ -319,6 +325,34 @@ class InputHandler:
             # Window resize
             elif event.type == pygame.VIDEORESIZE:
                 pass  # handled externally
+
+            # Window focus / visibility / pointer events
+            elif event.type in (
+                pygame.WINDOWFOCUSGAINED,
+                pygame.WINDOWENTER,
+                pygame.WINDOWSHOWN,
+                pygame.WINDOWRESTORED,
+                pygame.WINDOWEXPOSED,
+            ):
+                self.has_focus = True
+                if event.type == pygame.WINDOWENTER:
+                    self.mouse_in_window = True
+                actions.append(Action.FOCUS_GAINED)
+
+            elif event.type == pygame.WINDOWFOCUSLOST:
+                self.has_focus = False
+                self._held_key = None
+                self._key_repeat = _RepeatState()
+
+            elif event.type == pygame.WINDOWLEAVE:
+                self.mouse_in_window = False
+
+            elif event.type == pygame.ACTIVEEVENT:
+                if getattr(event, "gain", 0):
+                    self.has_focus = True
+                    actions.append(Action.FOCUS_GAINED)
+                else:
+                    self.has_focus = False
 
         # --- Keyboard repeat logic ------------------------------------------
         if self._held_key is not None and self._key_repeat.action:

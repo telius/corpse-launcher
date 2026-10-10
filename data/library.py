@@ -74,23 +74,26 @@ def _merge(steam_games: list[Game], lutris_games: list[Game]) -> list[Game]:
 
         if lg:
             # Merge: keep Steam metadata (name, appid, art fallbacks),
-            # but route launch through Lutris
+            # but route launch through Lutris and preserve Lutris platform for non-Steam games
+            platform = lg.platform if (lg.platform != Platform.STEAM or sg.is_shortcut) else sg.platform
+
             merged = Game(
                 slug=sg.slug,
                 name=sg.name or lg.name,
-                platform=Platform.STEAM,
+                platform=platform,
                 steam_appid=sg.steam_appid,
+                is_shortcut=sg.is_shortcut,
                 lutris_id=lg.lutris_id,
                 lutris_slug=lg.lutris_slug,
-                runner=sg.runner,
+                runner=lg.runner or sg.runner,
                 art_path=sg.art_path or lg.art_path,
                 install_dir=sg.install_dir or lg.install_dir,
-                playtime_minutes=sg.playtime_minutes or lg.playtime_minutes,
-                last_played=sg.last_played,
+                playtime_minutes=max(sg.playtime_minutes, lg.playtime_minutes),
+                last_played=max(sg.last_played, lg.last_played),
                 year=sg.year or lg.year,
                 launch_via_lutris=True,
                 lutris_launch_id=lg.lutris_id,
-                _mtime=sg._mtime,
+                _mtime=max(sg._mtime, lg._mtime),
             )
             result[merged.slug] = merged
         else:
