@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,16 +16,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev python3-pip python3-setuptools patchelf desktop-file-utils
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev python3-pip python3-setuptools patchelf desktop-file-utils file wget
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,18 +30,24 @@ jobs:
       - name: Install Python Dependencies
         run: |
           pip install --upgrade pip
-          pip install pyinstaller pygame numpy requests vdf
+          pip install -r requirements.txt pyinstaller
 
       - name: Build Standalone Executable with PyInstaller
         run: |
+          mkdir -p assets
           pyinstaller --clean --noconfirm \
             --add-data "assets:assets" \
             --add-data "ui:ui" \
             --add-data "data:data" \
+            --add-data "importer:importer" \
             --add-data "controller:controller" \
             --add-data "config.example.toml:." \
             --add-data "launcher.py:." \
             --add-data "config.py:." \
+            --hidden-import yaml \
+            --hidden-import vdf \
+            --hidden-import requests \
+            --hidden-import pygame \
             corpse-launcher.py
 
       - name: Create AppDir Layout
@@ -82,9 +83,10 @@ jobs:
       - name: Package AppImage (FUSE-less mode)
         run: |
           # Run appimagetool by extracting it, bypassing FUSE mount blocks
-          ./appimagetool --appimage-extract-and-run AppDir corpse-launcher-x86_64.AppImage
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir corpse-launcher-x86_64.AppImage
 
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: corpse-launcher-x86_64.AppImage
